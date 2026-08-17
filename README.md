@@ -1,4 +1,3 @@
-```markdown
 # Agente de Triagem de TI - Helpdesk Interno (TP1)
 
 Este projeto implementa um agente de inteligência artificial responsável pela triagem automática de chamados de suporte técnico de nível 1. O agente analisa a mensagem enviada pelo colaborador, classifica a natureza e a severidade do problema, recomenda ações imediatas e retorna uma resposta estritamente estruturada em JSON utilizando **Pydantic**.
