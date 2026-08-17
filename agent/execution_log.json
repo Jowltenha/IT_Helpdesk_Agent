@@ -1,0 +1,7 @@
+{
+  "ticket_summary": "Erro 403 ao acessar sistema de folha de pagamento",
+  "category": "Acessos/Senhas",
+  "severity": "Alta",
+  "recommended_action": "1. Verificar se o usuário possui perfil de acesso ativo no sistema de folha de pagamento. 2. Confirmar se houve expiração de senha ou bloqueio de conta. 3. Validar permissões de perfil junto ao administrador do sistema. 4. Caso necessário, redefinir permissões de acesso no nível N2. 5. Priorizar atendimento devido ao prazo crítico de entrega às 17h.",
+  "requires_human_escalation": true
+}
