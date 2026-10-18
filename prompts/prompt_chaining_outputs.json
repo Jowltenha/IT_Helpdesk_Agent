@@ -1,0 +1,48 @@
+{
+  "stage1_decomposition": {
+    "sintoma_principal": "Erro Acesso Negado 403 ao tentar acessar o sistema",
+    "sistema_envolvido": "Folha de Pagamento",
+    "identificacao_usuario": "maria.souza@empresa.com",
+    "prazo_urgencia": "Crítico - Relatório precisa ser enviado até 17h"
+  },
+  "stage2_tool_and_rag": {
+    "status_servico_consultado": {
+      "service_name": "Sistema de Folha de Pagamento",
+      "status": "Operational",
+      "message": "Todos os serviços operando normalmente. Sem instabilidades registradas.",
+      "last_updated": "2026-10-02 11:00:00"
+    },
+    "dados_usuario_consultados": {
+      "email": "maria.souza@empresa.com",
+      "name": "Maria Souza",
+      "role": "Coordenadora de RH",
+      "groups": [
+        "RH_Gestao",
+        "Folha_Pagamento_Admin",
+        "VPN_Users"
+      ],
+      "account_locked": true
+    },
+    "artigos_base_conhecimento": "--- CONTEXTO PROCEDURAL (RAG KB RETRIEVAL) ---\n Artigo ID: KB-101 | Título: Resolução de Erros de Permissão 403 e Acesso Negado em Sistemas Web (Relevância: 1.0)\n Categoria: Acessos/Senhas\n Procedimento: Para erros 403 no sistema de Folha de Pagamento ou ERP: 1. Confirmar se o usuário possui perfil ativo no AD corporativo. 2. Verificar se o grupo Folha_Pagamento_Admin ou Leitura foi atribuído. 3. Caso a conta esteja bloqueada por tentativas inválidas, acionar N2 para redefinição. 4. Limpeza de cache e cookies no navegador resolve casos de sessão corrompida.\n\n Artigo ID: KB-103 | Título: Falha de Hardware - Computador Não Liga ou Tela Preta (Relevância: 0.107)\n Categoria: Hardware\n Procedimento: Para incidentes de computador sem vídeo ou sem energia: 1. Testar cabo de força e fonte de alimentação. 2. Verificar se há leds acesos no gabinete ou teclado. 3. Este tipo de falha exige intervenção presencial obrigatória por analista de suporte N1/N2 físico.\n"
+  },
+  "stage3_reasoning_synthesis": "1. Sintoma analisado: Erro 403 de acesso negado no sistema de folha.\n2. Evidência da ferramenta: A conta maria.souza@empresa.com está BLOQUEADA no Active Directory (account_locked=True).\n3. Evidência de infraestrutura: O serviço de folha está operacional.\n4. Conclusão RAG KB-101: O erro 403 ocorre devido ao bloqueio da conta da coordenadora no AD.\n5. Ação recomendada: Desbloquear a conta no Active Directory via suporte N2 de acessos.",
+  "stage4_final_validated_output": {
+    "ticket_summary": "Erro 403 devido a bloqueio de conta no AD",
+    "category": "Acessos/Senhas",
+    "severity": "Alta",
+    "recommended_action": "Solicitar ao suporte N2 o desbloqueio imediato da conta maria.souza@empresa.com no Active Directory para liberação do sistema de folha.",
+    "requires_human_escalation": true,
+    "reasoning_steps": [
+      "Sintoma: Erro 403 ao acessar sistema de folha.",
+      "Ferramenta lookup_user_account retornou account_locked=True para o e-mail.",
+      "RAG KB-101 confirma procedimento de desbloqueio N2.",
+      "Prazo crítico até 17h justifica severidade Alta e escalonamento N2."
+    ],
+    "tools_invoked": [
+      "check_system_status",
+      "lookup_user_account",
+      "query_troubleshooting_kb"
+    ],
+    "confidence_score": 0.99
+  }
+}

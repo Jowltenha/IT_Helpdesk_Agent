@@ -1,7 +1,38 @@
-{
-  "ticket_summary": "Erro 403 ao acessar sistema de folha de pagamento",
-  "category": "Acessos/Senhas",
-  "severity": "Alta",
-  "recommended_action": "1. Verificar se o usuário possui perfil de acesso ativo no sistema de folha de pagamento. 2. Confirmar se houve expiração de senha ou bloqueio de conta. 3. Validar permissões de perfil junto ao administrador do sistema. 4. Caso necessário, redefinir permissões de acesso no nível N2. 5. Priorizar atendimento devido ao prazo crítico de entrega às 17h.",
-  "requires_human_escalation": true
-}
+[
+  {
+    "ticket_summary": "Erro de acesso no sistema de folha com código 403",
+    "category": "Acessos/Senhas",
+    "severity": "Alta",
+    "recommended_action": "1. Verificar se a conta possui o grupo Folha_Pagamento_Admin. 2. Caso conta bloqueada, solicitar desbloqueio. 3. Alternar navegadores e limpar cache.",
+    "requires_human_escalation": true,
+    "reasoning_steps": [
+      "Identificado erro 403 no sistema de folha com prazo crítico até 17h.",
+      "Ferramenta check_system_status consultada: Serviço de folha operando normalmente.",
+      "RAG KB-101 indica que erro 403 exige verificação no Active Directory ou grupo de acesso.",
+      "Como há prazo limite próximo e exige alteração de permissão no AD, escalado para N2."
+    ],
+    "tools_invoked": [
+      "query_troubleshooting_kb",
+      "check_system_status"
+    ],
+    "confidence_score": 0.98
+  },
+  {
+    "ticket_summary": "Erro de acesso no sistema de folha com código 403",
+    "category": "Acessos/Senhas",
+    "severity": "Alta",
+    "recommended_action": "1. Verificar se a conta possui o grupo Folha_Pagamento_Admin. 2. Caso conta bloqueada, solicitar desbloqueio. 3. Alternar navegadores e limpar cache.",
+    "requires_human_escalation": true,
+    "reasoning_steps": [
+      "Identificado erro 403 no sistema de folha com prazo crítico até 17h.",
+      "Ferramenta check_system_status consultada: Serviço de folha operando normalmente.",
+      "RAG KB-101 indica que erro 403 exige verificação no Active Directory ou grupo de acesso.",
+      "Como há prazo limite próximo e exige alteração de permissão no AD, escalado para N2."
+    ],
+    "tools_invoked": [
+      "query_troubleshooting_kb",
+      "lookup_user_account"
+    ],
+    "confidence_score": 0.98
+  }
+]

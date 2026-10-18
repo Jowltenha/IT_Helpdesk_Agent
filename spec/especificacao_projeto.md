@@ -1,24 +1,76 @@
-# Especificação do Projeto e Arquitetura Inicial
+# Especificação do Projeto e Arquitetura do Sistema (Evolução TP2)
 
-## 1. Descrição do Problema
-No ambiente corporativo, a equipe de suporte de TI (Nível 1 / Helpdesk) lida diariamente com um elevado volume de solicitações informais e não estruturadas enviadas por colaboradores via e-mail ou chat. A triagem manual desses chamados gera atrasos na identificação de urgências, inconsistência na categorização e alocação ineficiente de analistas especializados.
+## 1. Descrição do Problema e Objetivos do TP2
 
-O objetivo deste projeto é automatizar a fase de triagem do suporte Nível 1 por meio de um Agente de IA. O agente analisa o texto livre enviado pelo colaborador, determina a natureza do problema, define o nível de severidade, sugere ações imediatas de autoatendimento e identifica se há necessidade de escalonamento presencial ou para equipes N2/N3.
+No ambiente corporativo, a equipe de suporte de TI (Nível 1 / Helpdesk) lida diariamente com chamados não estruturados. Na etapa inicial (TP1), construímos um agente básico que classificava solicitações em JSON estático.
 
-## 2. Arquitetura da Solução
+No **TP2**, o projeto evolui para um **Protótipo Funcional de Agente de IA**, cobrindo rigorosamente os 7 entregáveis exigidos na matriz de avaliação:
 
-### Diagrama de Fluxo de Dados
-`[Entrada do Usuário (Texto Livre)]` ➡️ `[Agente de Triagem (LLM + Prompt Anatomizado)]` ➡️ `[Validador de Schema (Pydantic)]` ➡️ `[Terminal / execution_log.json]`
+1. **Gatilho de Entrada (Trigger / n8n):** Recebimento de mensagens em texto livre via Webhook (n8n, Chatbot Web, Telegram, Gmail).
+2. **Fonte de Informações (Estruturada e Não Estruturada):**
+   - *Estruturada:* APIs e mocks de Status de Infraestrutura, Active Directory (JSON) e banco relacional SQLite (`agent_sessions.db`).
+   - *Não Estruturada:* Artigos procedimentos operacionais (SOPs) em texto livre da Base de Conhecimento resgatados via RAG semântico.
+3. **Diagrama de Arquitetura dos 9 Componentes:** Mapeamento em camadas numeradas de 1 a 9.
+4. **Descrição Textual dos 9 Componentes:** Detalhamento funcional de cada módulo do sistema.
+5. **Exemplo de Fluxo de Dados:** Rastreamento passo a passo da entrada do usuário até o resultado final tipado.
+6. **Dado Estruturado:** Mapeamento de tabelas SQLite e contratos de APIs.
+7. **Demais Itens do TP2:** Tools Python `@function_tool`, raciocínio encadeado (*Prompt Chaining* / *CoT*), memória persistente, RAG, validação Pydantic v2 e benchmark A/B.
 
-### Componentes do Sistema
-1. **Entrada de Dados (`User Prompt`):** Texto em linguagem natural descrevendo a falha técnica ou dúvida do colaborador.
-2. **Motor de Inferência / Agente de IA:** Utilização do cliente `AsyncOpenAI` conectado ao proxy de modelos local (**9Router Proxy / Antigravity**) executando o modelo `ag/claude-sonnet-4-6`.
-3. **Engenharia de Prompt:** Instruções estruturadas seguindo a anatomia recomendada (Instrução, Contexto, Exemplos, Formato de Saída e Restrições).
-4. **Camada de Validação e Formatação (`Pydantic`):** Modelo de dados `HelpdeskResponse` que garante a integridade dos campos e tipos de dados retornados pela LLM.
-5. **Persistência de Logs (`execution_log.json`):** Registro em arquivo JSON local com o resultado validado da execução para auditoria e integração com outros sistemas.
+---
 
-## 3. Justificativas Técnicas
+## 2. Diagrama de Arquitetura dos 9 Componentes
 
-- **Python & Pydantic v2:** A escolha do Pydantic garante *type safety* e parseamento determinístico de dados não estruturados gerados pela LLM, evitando erros de contrato ao integrar a IA com APIs ou bancos de dados downstream.
-- **Cliente AsyncOpenAI (`asyncio`):** Permite chamadas assíncronas de I/O, otimizando o tempo de resposta da aplicação para execuções simultâneas ou escaláveis.
-- **Roteamento via 9Router Proxy:** Garante flexibilidade de provedores e privacidade/controle de infraestrutura ao intermediar requisições para modelos como Claude e Gemini de forma transparente e compatível com a API da OpenAI.
+```text
++-----------------------------------------------------------------------------------+
+| 1. GATILHO DE ENTRADA (n8n Webhook / Chatbot Web / Telegram / Gmail)             |
+|    Recebe a solicitação em texto livre enviada pelo colaborador.                  |
++-----------------------------------------------------------------------------------+
+                                          |
+                                          v
++-----------------------------------------------------------------------------------+
+| 2. AGENTE ORQUESTRADOR / RUNNER (HelpdeskAgentRunner em Python)                   |
+|    Gerencia o ciclo de vida da requisição, acionando memória, RAG e tools.        |
++-----------------------------------------------------------------------------------+
+         |                                |                               |
+         v                                v                               v
++------------------+             +-------------------+           +------------------+
+| 3. MEMÓRIA DB    |             | 7. ENGINE RAG     |           | FERRAMENTAS      |
+| (SQLiteSession)  |             | (VectorEmbeddings)|           | (@function_tool) |
+| Histórico SQLite |             | Busca Semântica   |           |                  |
++------------------+             +-------------------+           +------------------+
+                                          |                               |
+                                          v                               v
+                                 +-------------------+           +------------------+
+                                 | 6. BASE CONHECIM. |           | 4. STATUS INFRA  |
+                                 | (Docs SOPs Text)  |           | 5. ACTIVE DIRECT.|
+                                 | Não Estruturada   |           | Dado Estruturado |
+                                 +-------------------+           +------------------+
+         |                                |                               |
+         +--------------------------------+-------------------------------+
+                                          |
+                                          v
++-----------------------------------------------------------------------------------+
+| 8. MOTOR DE INFERÊNCIA LLM (Claude Sonnet / AsyncOpenAI)                          |
+|    Executa raciocínio Chain-of-Thought & Least-to-Most Prompting.                 |
++-----------------------------------------------------------------------------------+
+                                          |
+                                          v
++-----------------------------------------------------------------------------------+
+| 9. VALIDADOR DE SCHEMA & FORMATADOR DE SAÍDA (Pydantic v2 / HelpdeskResponse)     |
+|    Garante tipagem estrita e gera o retorno final salvo em execution_log.json.   |
++-----------------------------------------------------------------------------------+
+```
+
+---
+
+## 3. Descrição dos 9 Componentes da Arquitetura
+
+1. **Gatilho de Entrada (n8n Webhook / Chatbot / App Web):** Ponto de contato onde a solicitação do usuário entra no fluxo do agente.
+2. **Agente Orquestrador (`HelpdeskAgentRunner`):** Runner Python que gerencia o estado da execução e interage com os subsistemas.
+3. **Memória de Sessão SQLite (`SQLiteSession`):** Armazena e recupera o histórico da conversa mantendo a continuidade do atendimento.
+4. **Tool Status de Infraestrutura (`check_system_status`):** Consulta a monitoria de VPN, Folha de Pagamento, ERP e E-mail.
+5. **Tool Active Directory (`lookup_user_account`):** Consulta perfil de acesso e bloqueio de contas (`account_locked`).
+6. **Base de Conhecimento (Docs Não Estruturados):** Conjunto de artigos e SOPs técnicos em linguagem natural.
+7. **Engine RAG Semântico (`VectorEmbeddingRAG`):** Pesquisa semântica por TF-IDF e cosseno para recuperar artigos procedimentos.
+8. **Motor de Inferência LLM (`Claude Sonnet` via `AsyncOpenAI`):** Agente raciocinador em etapas (Chain-of-Thought).
+9. **Validador de Schema Pydantic v2 (`HelpdeskResponse`):** Valida a saída JSON garantindo *type safety* total.

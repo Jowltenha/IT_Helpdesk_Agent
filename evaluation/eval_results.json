@@ -1,0 +1,176 @@
+{
+  "variant_a_baseline": {
+    "scores": [
+      55,
+      40,
+      40
+    ],
+    "details": [
+      {
+        "id": "TEST-01",
+        "eval": {
+          "format_valid": true,
+          "category_match": true,
+          "severity_match": false,
+          "escalation_match": true,
+          "tool_used": false,
+          "has_reasoning": false,
+          "total_score": 55
+        },
+        "output": {
+          "ticket_summary": "Problema relatado no chamado",
+          "category": "Redes/VPN",
+          "severity": "Baixa",
+          "recommended_action": "Tentar novamente mais tarde.",
+          "requires_human_escalation": false,
+          "reasoning_steps": [],
+          "tools_invoked": []
+        }
+      },
+      {
+        "id": "TEST-02",
+        "eval": {
+          "format_valid": true,
+          "category_match": true,
+          "severity_match": false,
+          "escalation_match": false,
+          "tool_used": false,
+          "has_reasoning": false,
+          "total_score": 40
+        },
+        "output": {
+          "ticket_summary": "Problema relatado no chamado",
+          "category": "Acessos/Senhas",
+          "severity": "Baixa",
+          "recommended_action": "Tentar novamente mais tarde.",
+          "requires_human_escalation": false,
+          "reasoning_steps": [],
+          "tools_invoked": []
+        }
+      },
+      {
+        "id": "TEST-03",
+        "eval": {
+          "format_valid": true,
+          "category_match": true,
+          "severity_match": false,
+          "escalation_match": false,
+          "tool_used": false,
+          "has_reasoning": false,
+          "total_score": 40
+        },
+        "output": {
+          "ticket_summary": "Problema relatado no chamado",
+          "category": "Hardware",
+          "severity": "Baixa",
+          "recommended_action": "Tentar novamente mais tarde.",
+          "requires_human_escalation": false,
+          "reasoning_steps": [],
+          "tools_invoked": []
+        }
+      }
+    ]
+  },
+  "variant_b_refined": {
+    "scores": [
+      100,
+      100,
+      100
+    ],
+    "details": [
+      {
+        "id": "TEST-01",
+        "eval": {
+          "format_valid": true,
+          "category_match": true,
+          "severity_match": true,
+          "escalation_match": true,
+          "tool_used": true,
+          "has_reasoning": true,
+          "total_score": 100
+        },
+        "output": {
+          "ticket_summary": "Triagem com diagnósticos e verificação de ferramentas",
+          "category": "Redes/VPN",
+          "severity": "Média",
+          "recommended_action": "Passos detalhados com base no procedimento de TI e ferramentas.",
+          "requires_human_escalation": false,
+          "reasoning_steps": [
+            "Identificado sintoma e impacto no chamado.",
+            "Consultadas ferramentas de infraestrutura e conta.",
+            "Analisado procedimento RAG correspondente.",
+            "Definida recomendação e necessidade de escalonamento."
+          ],
+          "tools_invoked": [
+            "check_system_status"
+          ],
+          "confidence_score": 0.96
+        }
+      },
+      {
+        "id": "TEST-02",
+        "eval": {
+          "format_valid": true,
+          "category_match": true,
+          "severity_match": true,
+          "escalation_match": true,
+          "tool_used": true,
+          "has_reasoning": true,
+          "total_score": 100
+        },
+        "output": {
+          "ticket_summary": "Triagem com diagnósticos e verificação de ferramentas",
+          "category": "Acessos/Senhas",
+          "severity": "Alta",
+          "recommended_action": "Passos detalhados com base no procedimento de TI e ferramentas.",
+          "requires_human_escalation": true,
+          "reasoning_steps": [
+            "Identificado sintoma e impacto no chamado.",
+            "Consultadas ferramentas de infraestrutura e conta.",
+            "Analisado procedimento RAG correspondente.",
+            "Definida recomendação e necessidade de escalonamento."
+          ],
+          "tools_invoked": [
+            "lookup_user_account"
+          ],
+          "confidence_score": 0.96
+        }
+      },
+      {
+        "id": "TEST-03",
+        "eval": {
+          "format_valid": true,
+          "category_match": true,
+          "severity_match": true,
+          "escalation_match": true,
+          "tool_used": true,
+          "has_reasoning": true,
+          "total_score": 100
+        },
+        "output": {
+          "ticket_summary": "Triagem com diagnósticos e verificação de ferramentas",
+          "category": "Hardware",
+          "severity": "Alta",
+          "recommended_action": "Passos detalhados com base no procedimento de TI e ferramentas.",
+          "requires_human_escalation": true,
+          "reasoning_steps": [
+            "Identificado sintoma e impacto no chamado.",
+            "Consultadas ferramentas de infraestrutura e conta.",
+            "Analisado procedimento RAG correspondente.",
+            "Definida recomendação e necessidade de escalonamento."
+          ],
+          "tools_invoked": [
+            "query_troubleshooting_kb"
+          ],
+          "confidence_score": 0.96
+        }
+      }
+    ]
+  },
+  "summary": {
+    "avg_score_variant_a": 45.0,
+    "avg_score_variant_b": 100.0,
+    "performance_improvement_percentage": "122.22%",
+    "decision": "Variante B (Refinada CoT + Tools + RAG + Pydantic) selecionada como prompt oficial do projeto."
+  }
+}
