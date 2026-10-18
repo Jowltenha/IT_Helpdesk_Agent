@@ -5,6 +5,10 @@ build/
 dist/
 wheels/
 *.egg-info
+agent_sessions.db
+CLAUDE.md
+.python-version
 
 # Virtual environments
 .venv
+.env
