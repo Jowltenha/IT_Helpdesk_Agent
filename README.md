@@ -66,3 +66,18 @@ python evaluation/evaluate.py
 ## 📑 Relatório Técnico e Entregáveis
 
 O relatório técnico completo contendo o **mapeamento oficial dos 7 entregáveis do slide do professor**, os **9 componentes da arquitetura**, a matriz de riscos e o guia para gravação do vídeo está disponível em **[`RELATORIO_TECNICO.md`](RELATORIO_TECNICO.md)**.
+
+O agente valida a resposta e gera um JSON estruturado com o seguinte esquema:
+
+```json
+{
+  "ticket_summary": "Erro 403 ao acessar sistema de folha de pagamento",
+  "category": "Acessos/Senhas",
+  "severity": "Alta", 
+  "recommended_action": "1. Verificar se o usuário possui perfil de acesso ativo no sistema. 2. Confirmar alteração recente de permissões. 3. Solicitar ao administrador a revisão e reativação do acesso.",
+  "requires_human_escalation": true
+}
+
+```
+
+Os resultados de cada execução são salvos automaticamente no arquivo `execution_log.json`.
