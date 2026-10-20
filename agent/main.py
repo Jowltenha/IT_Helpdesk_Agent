@@ -167,7 +167,7 @@ class HelpdeskAgentRunner:
         # Garante que as ferramentas realmente invocadas sejam registradas
         if not final_output.tools_invoked:
             final_output.tools_invoked = list(set(tools_used))
-
+ 
         # 8. Persiste a resposta do assistente no banco SQLite da sessão
         session.add_message("assistant", final_output.model_dump_json())
 

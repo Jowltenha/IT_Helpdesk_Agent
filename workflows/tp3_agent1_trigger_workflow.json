@@ -1,0 +1,205 @@
+{
+  "name": "TP3 - IT Helpdesk Agent 1 Trigger Workflow",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "e4a1b0c2-1111-4000-8000-000000000001",
+      "name": "When clicking ‘Execute workflow’",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "user_prompt",
+              "value": "Nao consigo acessar a folha de pagamento. Erro 'Acesso Negado 403'. E-mail maria.souza@empresa.com. Preciso enviar o relatorio urgente ate 17h."
+            },
+            {
+              "name": "session_id",
+              "value": "n8n_session_demo_tp3"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e4a1b0c2-2222-4000-8000-000000000002",
+      "name": "Set Ticket Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://local:8001/run",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"user_prompt\": \"{{ $json.user_prompt }}\",\n  \"session_id\": \"{{ $json.session_id }}\"\n}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "e4a1b0c2-3333-4000-8000-000000000003",
+      "name": "HTTP Request - Trigger Agent 1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "seconds"
+      },
+      "id": "e4a1b0c2-4444-4000-8000-000000000004",
+      "name": "Wait for Agent Execution",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        900,
+        300
+      ],
+      "webhookId": "9f7b1e4c-1234-4567-89ab-cdef01234567"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=http://local:8001/status/{{ $('HTTP Request - Trigger Agent 1').item.json.task_id }}",
+        "options": {}
+      },
+      "id": "e4a1b0c2-5555-4000-8000-000000000005",
+      "name": "HTTP Request - Poll Agent 1 Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "status_tarefa",
+              "value": "={{ $json.status }}"
+            },
+            {
+              "name": "resumo_chamado",
+              "value": "={{ $json.result.ticket_summary }}"
+            },
+            {
+              "name": "categoria",
+              "value": "={{ $json.result.category }}"
+            },
+            {
+              "name": "severidade",
+              "value": "={{ $json.result.severity }}"
+            },
+            {
+              "name": "acao_recomendada",
+              "value": "={{ $json.result.recommended_action }}"
+            },
+            {
+              "name": "escalonamento_obrigatorio",
+              "value": "={{ $json.result.requires_human_escalation }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e4a1b0c2-6666-4000-8000-000000000006",
+      "name": "Format Agent 1 Output",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        300
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Set Ticket Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Ticket Data": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request - Trigger Agent 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request - Trigger Agent 1": {
+      "main": [
+        [
+          {
+            "node": "Wait for Agent Execution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Agent Execution": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request - Poll Agent 1 Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request - Poll Agent 1 Status": {
+      "main": [
+        [
+          {
+            "node": "Format Agent 1 Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1b0a8c4f-9e1d-4f2a-8c3b-5d6e7f8a9b0c",
+  "meta": {
+    "instanceId": "it_helpdesk_n8n_tp3_export"
+  },
+  "id": "it_helpdesk_tp3_agent1_trigger",
+  "tags": []
+}

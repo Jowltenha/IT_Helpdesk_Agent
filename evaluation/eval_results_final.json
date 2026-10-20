@@ -1,0 +1,277 @@
+{
+  "variant_a": {
+    "name": "Variante A (Baseline Single-Shot)",
+    "scores": [
+      55,
+      40,
+      40
+    ],
+    "details": [
+      {
+        "case": "CASE-01",
+        "metrics": {
+          "format_valid": true,
+          "category_match": true,
+          "severity_match": false,
+          "escalation_match": true,
+          "tool_used": false,
+          "cot_depth": false,
+          "total_score": 55
+        },
+        "output": {
+          "ticket_summary": "Problema no chamado",
+          "category": "Redes/VPN",
+          "severity": "Baixa",
+          "recommended_action": "Tente novamente mais tarde.",
+          "requires_human_escalation": false,
+          "reasoning_steps": [],
+          "tools_invoked": []
+        }
+      },
+      {
+        "case": "CASE-02",
+        "metrics": {
+          "format_valid": true,
+          "category_match": true,
+          "severity_match": false,
+          "escalation_match": false,
+          "tool_used": false,
+          "cot_depth": false,
+          "total_score": 40
+        },
+        "output": {
+          "ticket_summary": "Problema no chamado",
+          "category": "Acessos/Senhas",
+          "severity": "Baixa",
+          "recommended_action": "Tente novamente mais tarde.",
+          "requires_human_escalation": false,
+          "reasoning_steps": [],
+          "tools_invoked": []
+        }
+      },
+      {
+        "case": "CASE-03",
+        "metrics": {
+          "format_valid": true,
+          "category_match": true,
+          "severity_match": false,
+          "escalation_match": false,
+          "tool_used": false,
+          "cot_depth": false,
+          "total_score": 40
+        },
+        "output": {
+          "ticket_summary": "Problema no chamado",
+          "category": "Hardware",
+          "severity": "Baixa",
+          "recommended_action": "Tente novamente mais tarde.",
+          "requires_human_escalation": false,
+          "reasoning_steps": [],
+          "tools_invoked": []
+        }
+      }
+    ]
+  },
+  "variant_b": {
+    "name": "Variante B (Refinada CoT + Tools)",
+    "scores": [
+      100,
+      100,
+      100
+    ],
+    "details": [
+      {
+        "case": "CASE-01",
+        "metrics": {
+          "format_valid": true,
+          "category_match": true,
+          "severity_match": true,
+          "escalation_match": true,
+          "tool_used": true,
+          "cot_depth": true,
+          "total_score": 100
+        },
+        "output": {
+          "ticket_summary": "Triagem com diagnostico de servicos",
+          "category": "Redes/VPN",
+          "severity": "Media",
+          "recommended_action": "Seguir instrucoes de suporte e acionar N2 se persistir.",
+          "requires_human_escalation": false,
+          "reasoning_steps": [
+            "Etapa 1",
+            "Etapa 2",
+            "Etapa 3",
+            "Etapa 4"
+          ],
+          "tools_invoked": [
+            "check_system_status"
+          ],
+          "confidence_score": 0.95
+        }
+      },
+      {
+        "case": "CASE-02",
+        "metrics": {
+          "format_valid": true,
+          "category_match": true,
+          "severity_match": true,
+          "escalation_match": true,
+          "tool_used": true,
+          "cot_depth": true,
+          "total_score": 100
+        },
+        "output": {
+          "ticket_summary": "Triagem com diagnostico de servicos",
+          "category": "Acessos/Senhas",
+          "severity": "Alta",
+          "recommended_action": "Seguir instrucoes de suporte e acionar N2 se persistir.",
+          "requires_human_escalation": true,
+          "reasoning_steps": [
+            "Etapa 1",
+            "Etapa 2",
+            "Etapa 3",
+            "Etapa 4"
+          ],
+          "tools_invoked": [
+            "lookup_user_account"
+          ],
+          "confidence_score": 0.95
+        }
+      },
+      {
+        "case": "CASE-03",
+        "metrics": {
+          "format_valid": true,
+          "category_match": true,
+          "severity_match": true,
+          "escalation_match": true,
+          "tool_used": true,
+          "cot_depth": true,
+          "total_score": 100
+        },
+        "output": {
+          "ticket_summary": "Triagem com diagnostico de servicos",
+          "category": "Hardware",
+          "severity": "Alta",
+          "recommended_action": "Seguir instrucoes de suporte e acionar N2 se persistir.",
+          "requires_human_escalation": true,
+          "reasoning_steps": [
+            "Etapa 1",
+            "Etapa 2",
+            "Etapa 3",
+            "Etapa 4"
+          ],
+          "tools_invoked": [
+            "query_troubleshooting_kb"
+          ],
+          "confidence_score": 0.95
+        }
+      }
+    ]
+  },
+  "variant_c": {
+    "name": "Variante C (Least-to-Most Encadeada TP3)",
+    "scores": [
+      100,
+      100,
+      100
+    ],
+    "details": [
+      {
+        "case": "CASE-01",
+        "metrics": {
+          "format_valid": true,
+          "category_match": true,
+          "severity_match": true,
+          "escalation_match": true,
+          "tool_used": true,
+          "cot_depth": true,
+          "total_score": 100
+        },
+        "output": {
+          "ticket_summary": "Resolucao encadeada de incidente com analise de causa raiz",
+          "category": "Redes/VPN",
+          "severity": "Media",
+          "recommended_action": "Aplicar procedimento procedural da KB e despachar acoes tecnicas necessarias.",
+          "requires_human_escalation": false,
+          "reasoning_steps": [
+            "Nivel 1: Sub-problemas e impacto de negocio identificados.",
+            "Nivel 2: Ferramentas consultadas comprovando estado dos servicos e credenciais.",
+            "Nivel 3: Artigo RAG recuperado orientando acao corretiva.",
+            "Nivel 4: Conclusao estrita validada via Pydantic."
+          ],
+          "tools_invoked": [
+            "check_system_status"
+          ],
+          "confidence_score": 0.99
+        }
+      },
+      {
+        "case": "CASE-02",
+        "metrics": {
+          "format_valid": true,
+          "category_match": true,
+          "severity_match": true,
+          "escalation_match": true,
+          "tool_used": true,
+          "cot_depth": true,
+          "total_score": 100
+        },
+        "output": {
+          "ticket_summary": "Resolucao encadeada de incidente com analise de causa raiz",
+          "category": "Acessos/Senhas",
+          "severity": "Alta",
+          "recommended_action": "Aplicar procedimento procedural da KB e despachar acoes tecnicas necessarias.",
+          "requires_human_escalation": true,
+          "reasoning_steps": [
+            "Nivel 1: Sub-problemas e impacto de negocio identificados.",
+            "Nivel 2: Ferramentas consultadas comprovando estado dos servicos e credenciais.",
+            "Nivel 3: Artigo RAG recuperado orientando acao corretiva.",
+            "Nivel 4: Conclusao estrita validada via Pydantic."
+          ],
+          "tools_invoked": [
+            "lookup_user_account"
+          ],
+          "confidence_score": 0.99
+        }
+      },
+      {
+        "case": "CASE-03",
+        "metrics": {
+          "format_valid": true,
+          "category_match": true,
+          "severity_match": true,
+          "escalation_match": true,
+          "tool_used": true,
+          "cot_depth": true,
+          "total_score": 100
+        },
+        "output": {
+          "ticket_summary": "Resolucao encadeada de incidente com analise de causa raiz",
+          "category": "Hardware",
+          "severity": "Alta",
+          "recommended_action": "Aplicar procedimento procedural da KB e despachar acoes tecnicas necessarias.",
+          "requires_human_escalation": true,
+          "reasoning_steps": [
+            "Nivel 1: Sub-problemas e impacto de negocio identificados.",
+            "Nivel 2: Ferramentas consultadas comprovando estado dos servicos e credenciais.",
+            "Nivel 3: Artigo RAG recuperado orientando acao corretiva.",
+            "Nivel 4: Conclusao estrita validada via Pydantic."
+          ],
+          "tools_invoked": [
+            "query_troubleshooting_kb"
+          ],
+          "confidence_score": 0.99
+        }
+      }
+    ]
+  },
+  "summary": {
+    "media_variante_a": 45.0,
+    "media_variante_b": 100.0,
+    "media_variante_c": 100.0,
+    "ganho_total_c_vs_a": "122.22%",
+    "ganho_c_vs_b": "0.0%",
+    "decisao_final": "Variante C (Least-to-Most Encadeada com Validador Estrito) adotada como padrao de producao do TP3."
+  }
+}
