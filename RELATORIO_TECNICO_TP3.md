@@ -21,7 +21,7 @@ Para o desenvolvimento do TP3, foi adotada a integração do **Antigravity com C
 1. **Inicialização do Proxy Local (9Router):** O proxy foi inicializado e vinculado na porta local padrão `20128` (`http://localhost:20128/v1`).
 2. **Configuração de Variáveis de Ambiente (`.env`):**
    ```bash
-   OPENAI_API_KEY=sk-2a7805194c9aa61a-7hzuzc-90321a57
+   OPENAI_API_KEY="SUA KEY"
    OPENAI_BASE_URL=http://localhost:20128/v1
    ```
 3. **Instalação das Dependências Técnicas do TP3:**

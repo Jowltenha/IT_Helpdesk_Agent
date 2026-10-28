@@ -7,7 +7,6 @@ wheels/
 *.egg-info
 agent_sessions.db
 .db 
-CLAUDE.md
 .python-version
 
 # Virtual environments
