@@ -1,65 +1,49 @@
 """
-Gerenciador de Memoria Persistente SQLite para o Agente 1.
-Retem historico de conversas por session_id.
+Gerenciador de Memória Persistente usando a SQLiteSession do OpenAI Agents SDK.
+Atende ao Requisito 2 do projeto: Memória conversacional persistente para o Agente 1.
 """
-import sqlite3
 import os
-from typing import List, Dict, Optional
+from pathlib import Path
+from typing import Optional, Union
+
+try:
+    from agents.memory import SQLiteSession as SDKSQLiteSession
+    HAS_AGENTS_SDK = True
+except ImportError:
+    HAS_AGENTS_SDK = False
+
+
+DEFAULT_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "agent1_sessions.db")
 
 
 class SQLiteSession:
     """
-    Gerencia a persistencia do historico de conversas em banco SQLite para o Agente 1.
+    Wrapper e fábrica para a SQLiteSession oficial do OpenAI Agents SDK.
+    Garante que o Agente 1 mantenha histórico persistente de conversas entre turnos.
     """
 
-    def __init__(self, db_path: Optional[str] = None, session_id: str = "default_session"):
-        if db_path is None:
-            base_dir = os.path.dirname(os.path.abspath(__file__))
-            self.db_path = os.path.join(base_dir, "agent1_sessions.db")
-        else:
-            self.db_path = db_path
+    def __init__(self, session_id: str = "default_session", db_path: Optional[Union[str, Path]] = None):
         self.session_id = session_id
-        self._init_db()
+        self.db_path = str(db_path) if db_path else DEFAULT_DB_PATH
 
-    def _init_db(self):
-        """Inicializa a tabela de mensagens da sessao caso nao exista."""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS session_messages (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    session_id TEXT NOT NULL,
-                    role TEXT NOT NULL,
-                    content TEXT NOT NULL,
-                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-            conn.commit()
-
-    def add_message(self, role: str, content: str):
-        """Adiciona uma nova mensagem ao historico da sessao ativa."""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                "INSERT INTO session_messages (session_id, role, content) VALUES (?, ?, ?)",
-                (self.session_id, role, content)
+        if HAS_AGENTS_SDK:
+            self._sdk_session = SDKSQLiteSession(
+                session_id=self.session_id,
+                db_path=self.db_path
             )
-            conn.commit()
+        else:
+            self._sdk_session = None
 
-    def get_messages(self, limit: Optional[int] = None) -> List[Dict[str, str]]:
-        """Recupera mensagens da sessao atual."""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            query = "SELECT role, content FROM session_messages WHERE session_id = ? ORDER BY id ASC"
-            if limit:
-                query += f" LIMIT {limit}"
-            cursor.execute(query, (self.session_id,))
-            rows = cursor.fetchall()
-            return [{"role": r, "content": c} for r, c in rows]
+    @property
+    def sdk_session(self):
+        """Retorna a instância real do SDK SQLiteSession para ser passada ao Runner.run."""
+        return self._sdk_session
 
-    def clear_session(self):
-        """Limpa as mensagens da sessao."""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM session_messages WHERE session_id = ?", (self.session_id,))
-            conn.commit()
+    def get_session_id(self) -> str:
+        return self.session_id
+
+    def get_db_path(self) -> str:
+        return self.db_path
+
+
+__all__ = ["SQLiteSession", "DEFAULT_DB_PATH"]

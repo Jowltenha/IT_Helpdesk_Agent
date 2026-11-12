@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json.schemastore.org/partial-claude-code-settings.json",
+  "name": "Agent 1 - N1 Triage Security Policy & Permissions",
+  "version": "1.0.0",
+  "description": "Especificação formal de permissões e hooks para o Agente 1 (Triagem N1)",
+  "permissions": {
+    "allow": [
+      "Bash:python3 -m pytest agent1/",
+      "Bash:python3 agent1/test_agent1_api.py",
+      "Bash:python3 agent1/hooks/test_hook.py",
+      "Read:agent1/**",
+      "Read:agent1/execution_log.json",
+      "Read:agent1/hooks/hook_audit.log",
+      "Write:agent1/execution_log.json",
+      "Write:agent1/hooks/hook_audit.log"
+    ],
+    "deny": [
+      "Bash:rm -rf *",
+      "Bash:git push --force*",
+      "Bash:drop database*",
+      "Bash:rm -rf agent1/agent1_sessions.db",
+      "Bash:curl -X DELETE *",
+      "Write:/etc/*",
+      "Write:/var/*"
+    ],
+    "ask": [
+      "Bash:sqlite3 agent1/agent1_sessions.db *",
+      "Bash:uvicorn agent1.app:app *",
+      "Write:agent1/models.py",
+      "Write:agent1/app.py",
+      "Write:agent1/runner.py"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "name": "pre_tool_validator",
+        "script": "agent1/hooks/pre_tool_validator.py",
+        "description": "Valida e sanitiza argumentos de ferramentas antes da execução (domínio de e-mail e injeção).",
+        "timeout_ms": 3000
+      }
+    ]
+  },
+  "governance": {
+    "agent_role": "N1_Triage_Read_Only",
+    "data_classification": "Internal_Restricted",
+    "audit_trail_required": true,
+    "human_in_the_loop_for_destructive": true
+  }
+}

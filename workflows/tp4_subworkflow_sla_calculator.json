@@ -1,0 +1,114 @@
+{
+  "name": "TP4 - Sub-workflow: SLA Calculator & Policy Sanitizer",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "subnode-01-trigger",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Lógica de cálculo corporativo de SLA e enriquecimento de políticas de suporte\nconst inputData = $input.first().json;\n\nconst severity = (inputData.severity || 'Media').toLowerCase();\nconst category = inputData.category || 'Outros';\nconst ticketId = inputData.ticket_id || 'TCK-UNKNOWN';\nconst userEmail = inputData.user_email || 'usuario@empresa.com';\n\n// Matriz formal de SLA por severidade (em minutos)\nconst slaMatrix = {\n  'critica': 30,\n  'alta': 120,\n  'media': 480,\n  'baixa': 1440\n};\n\nconst slaMinutes = slaMatrix[severity] || 480;\n\n// Determina a equipe técnica responsável e nível de escalonamento\nlet assignedTeam = 'N1 Suporte Geral';\nlet escalationTier = 'N1_LOCAL';\nlet onCallRequired = false;\n\nif (category === 'Acessos/Senhas') {\n  assignedTeam = 'N2 Acessos e Identidade';\n  escalationTier = 'N2_AUTOMATED_REMEDIATION';\n} else if (category === 'Redes/VPN') {\n  assignedTeam = 'N2 Infraestrutura e Redes';\n  escalationTier = 'N2_NETWORK_FAILOVER';\n} else if (category === 'Hardware') {\n  assignedTeam = 'Suporte Presencial N2';\n  escalationTier = 'N2_ONSITE_FIELD_SERVICE';\n}\n\nif (severity === 'critica') {\n  onCallRequired = true;\n  escalationTier = 'N3_PLANTÃO_IMEDIATO';\n}\n\n// Cálculo de deadline com base no horário atual\nconst now = new Date();\nconst deadlineDate = new Date(now.getTime() + slaMinutes * 60000);\n\nreturn [{\n  json: {\n    subworkflow_executed: true,\n    subworkflow_version: 'v4.0.0',\n    ticket_id: ticketId,\n    user_email: userEmail,\n    category: category,\n    severity: inputData.severity || 'Media',\n    sla_target_minutes: slaMinutes,\n    sla_deadline_iso: deadlineDate.toISOString(),\n    assigned_team: assignedTeam,\n    escalation_tier: escalationTier,\n    on_call_required: onCallRequired,\n    compliance_rule_applied: 'SOP-ITSM-POL-04',\n    calculated_at: now.toISOString()\n  }\n}];"
+      },
+      "id": "subnode-02-calculate-sla",
+      "name": "Code Node - Compute SLA & Escalation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-critical",
+              "leftValue": "={{ $json.sla_target_minutes }}",
+              "rightValue": 60,
+              "operator": {
+                "type": "number",
+                "operation": "lte"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "subnode-03-check-urgency",
+      "name": "If - Critical SLA (<= 60min)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nitem.priority_notification = 'PAGERDUTY_ALERT_TRIGGERED';\nitem.sla_badge = 'CRITICAL_URGENT';\nreturn [{ json: item }];"
+      },
+      "id": "subnode-04-flag-urgent",
+      "name": "Flag High Urgency",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [960, 220]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nitem.priority_notification = 'STANDARD_QUEUE';\nitem.sla_badge = 'NORMAL_FLOW';\nreturn [{ json: item }];"
+      },
+      "id": "subnode-05-flag-normal",
+      "name": "Flag Normal SLA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [960, 380]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Code Node - Compute SLA & Escalation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code Node - Compute SLA & Escalation": {
+      "main": [
+        [
+          {
+            "node": "If - Critical SLA (<= 60min)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If - Critical SLA (<= 60min)": {
+      "main": [
+        [
+          {
+            "node": "Flag High Urgency",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Flag Normal SLA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

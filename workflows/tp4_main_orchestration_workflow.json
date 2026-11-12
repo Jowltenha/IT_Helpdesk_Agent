@@ -1,0 +1,388 @@
+{
+  "name": "TP4 - Full Multi-Agent Orchestration with Agent Node & Sub-workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "helpdesk-triage-tp4",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "tp4-node-01-webhook-trigger",
+      "name": "Webhook Trigger (Chatbot Chainlit)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [160, 340],
+      "webhookId": "webhook-helpdesk-triage-tp4"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8001/run",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"user_prompt\": \"{{ $json.body.user_prompt }}\",\n  \"session_id\": \"{{ $json.body.session_id || 'sessao_tp4' }}\"\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "tp4-node-02-trigger-agent1",
+      "name": "HTTP Request - Trigger Agent 1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [400, 340]
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "seconds"
+      },
+      "id": "tp4-node-03-wait-agent1",
+      "name": "Wait for Agent 1 Execution",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [640, 340],
+      "webhookId": "wait-agent1-tp4-webhook"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=http://localhost:8001/status/{{ $('HTTP Request - Trigger Agent 1').item.json.task_id }}",
+        "options": {}
+      },
+      "id": "tp4-node-04-poll-agent1",
+      "name": "HTTP Request - Poll Agent 1 Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [860, 340]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Você é o Agente Cognitivo de Supervisão e Arbitragem do n8n (Agent Node de Alto Nível).\nAvalie o laudo técnico recebido do Agente 1 (Triagem N1):\n- Categoria: {{ $json.result.category }}\n- Severidade: {{ $json.result.severity }}\n- Requer Escalonamento: {{ $json.result.requires_human_escalation }}\n- Ação Recomendada: {{ $json.result.recommended_action }}\n- Evidências Coletadas: {{ JSON.stringify($json.result.reasoning_steps) }}\n\nSua missão é atuar como o juiz orquestrador: decida se o Agente 2 de Auto-Remediação deve intervir para desbloqueio ou failover, ou se o incidente deve ser apenas despachado.",
+        "options": {
+          "systemMessage": "Você é o Agente Supervisor do pipeline n8n. Retorne em JSON estruturado com os campos: 'should_remediate' (boolean), 'target_action' ('UNLOCK_ACCOUNT', 'VPN_FAILOVER', ou 'NONE'), 'audit_comment' (string)."
+        }
+      },
+      "id": "tp4-node-05-ai-agent-node",
+      "name": "AI Agent Node (Classificador & Supervisor)",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [1100, 340]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "options": {
+          "temperature": 0.1
+        }
+      },
+      "id": "tp4-node-05b-lm-model",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [1080, 560]
+    },
+    {
+      "parameters": {
+        "name": "query_support_policy",
+        "description": "Consulta as políticas de remediação e limites operacionais de TI para a categoria em análise.",
+        "jsCode": "return JSON.stringify({\n  policy_active: true,\n  auto_unlock_allowed: true,\n  vpn_failover_allowed: true,\n  sla_enforcement: 'STRICT'\n});"
+      },
+      "id": "tp4-node-05c-agent-tool",
+      "name": "Custom Tool - IT Policy Checker",
+      "type": "@n8n/n8n-nodes-langchain.toolCustom",
+      "typeVersion": 1.1,
+      "position": [1260, 560]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-needs-remediation",
+              "leftValue": "={{ $('HTTP Request - Poll Agent 1 Status').item.json.result.category }}",
+              "rightValue": "Acessos/Senhas",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "cond-needs-vpn-failover",
+              "leftValue": "={{ $('HTTP Request - Poll Agent 1 Status').item.json.result.category }}",
+              "rightValue": "Redes/VPN",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        }
+      },
+      "id": "tp4-node-06-conditional-routing",
+      "name": "If - Requires Remediation (Agent 2)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1360, 340]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8002/run",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"ticket_id\": \"TCK-{{ $now.toFormat('yyyyMMdd-HHmmss') }}\",\n  \"user_email\": \"{{ $('Webhook Trigger (Chatbot Chainlit)').item.json.body.user_prompt.includes('@') ? $('Webhook Trigger (Chatbot Chainlit)').item.json.body.user_prompt.match(/[\\w.-]+@[\\w.-]+/)[0] : 'maria.souza@empresa.com' }}\",\n  \"category\": \"{{ $('HTTP Request - Poll Agent 1 Status').item.json.result.category }}\",\n  \"severity\": \"{{ $('HTTP Request - Poll Agent 1 Status').item.json.result.severity }}\",\n  \"recommended_action\": \"{{ $('HTTP Request - Poll Agent 1 Status').item.json.result.recommended_action }}\",\n  \"requires_human_escalation\": {{ $('HTTP Request - Poll Agent 1 Status').item.json.result.requires_human_escalation }},\n  \"action_type\": \"{{ $('HTTP Request - Poll Agent 1 Status').item.json.result.category === 'Acessos/Senhas' ? 'UNLOCK_ACCOUNT' : 'VPN_FAILOVER' }}\"\n}",
+        "options": {}
+      },
+      "id": "tp4-node-07-trigger-agent2",
+      "name": "HTTP Request - Trigger Agent 2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1620, 220]
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "seconds"
+      },
+      "id": "tp4-node-08-wait-agent2",
+      "name": "Wait for Agent 2 Execution",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1840, 220],
+      "webhookId": "wait-agent2-tp4-webhook"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=http://localhost:8002/status/{{ $('HTTP Request - Trigger Agent 2').item.json.task_id }}",
+        "options": {}
+      },
+      "id": "tp4-node-09-poll-agent2",
+      "name": "HTTP Request - Poll Agent 2 Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2060, 220]
+    },
+    {
+      "parameters": {
+        "workflowId": "subworkflow-sla-calculator",
+        "workflowOptions": {
+          "fields": {
+            "values": [
+              {
+                "name": "ticket_id",
+                "value": "={{ $('HTTP Request - Poll Agent 1 Status').item.json.result.ticket_summary }}"
+              },
+              {
+                "name": "category",
+                "value": "={{ $('HTTP Request - Poll Agent 1 Status').item.json.result.category }}"
+              },
+              {
+                "name": "severity",
+                "value": "={{ $('HTTP Request - Poll Agent 1 Status').item.json.result.severity }}"
+              },
+              {
+                "name": "user_email",
+                "value": "maria.souza@empresa.com"
+              }
+            ]
+          }
+        }
+      },
+      "id": "tp4-node-10-execute-subworkflow",
+      "name": "Execute Sub-workflow (SLA Calculator)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [2300, 340]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "id": "tp4-node-11-merge-all",
+      "name": "Merge Agent 1, Agent 2 & Sub-workflow",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [2540, 340]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"status\": \"SUCCESS\",\n  \"tp4_orchestration\": true,\n  \"session_id\": \"{{ $('Webhook Trigger (Chatbot Chainlit)').item.json.body.session_id }}\",\n  \"triage_n1\": {\n    \"ticket_summary\": \"{{ $('HTTP Request - Poll Agent 1 Status').item.json.result.ticket_summary }}\",\n    \"category\": \"{{ $('HTTP Request - Poll Agent 1 Status').item.json.result.category }}\",\n    \"severity\": \"{{ $('HTTP Request - Poll Agent 1 Status').item.json.result.severity }}\",\n    \"recommended_action\": \"{{ $('HTTP Request - Poll Agent 1 Status').item.json.result.recommended_action }}\",\n    \"requires_human_escalation\": {{ $('HTTP Request - Poll Agent 1 Status').item.json.result.requires_human_escalation }},\n    \"reasoning_steps\": {{ JSON.stringify($('HTTP Request - Poll Agent 1 Status').item.json.result.reasoning_steps) }},\n    \"tools_invoked\": {{ JSON.stringify($('HTTP Request - Poll Agent 1 Status').item.json.result.tools_invoked) }},\n    \"confidence_score\": {{ $('HTTP Request - Poll Agent 1 Status').item.json.result.confidence_score }}\n  },\n  \"remediation_n2\": {{ $('HTTP Request - Poll Agent 2 Status')?.item?.json?.result ? JSON.stringify($('HTTP Request - Poll Agent 2 Status').item.json.result) : 'null' }},\n  \"subworkflow_sla\": {{ JSON.stringify($('Execute Sub-workflow (SLA Calculator)').item.json) }}\n}",
+        "options": {}
+      },
+      "id": "tp4-node-12-respond-webhook",
+      "name": "Respond to Webhook (Chatbot Response)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2780, 340]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Trigger (Chatbot Chainlit)": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request - Trigger Agent 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request - Trigger Agent 1": {
+      "main": [
+        [
+          {
+            "node": "Wait for Agent 1 Execution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Agent 1 Execution": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request - Poll Agent 1 Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request - Poll Agent 1 Status": {
+      "main": [
+        [
+          {
+            "node": "AI Agent Node (Classificador & Supervisor)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent Node (Classificador & Supervisor)",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Custom Tool - IT Policy Checker": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent Node (Classificador & Supervisor)",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent Node (Classificador & Supervisor)": {
+      "main": [
+        [
+          {
+            "node": "If - Requires Remediation (Agent 2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If - Requires Remediation (Agent 2)": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request - Trigger Agent 2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Execute Sub-workflow (SLA Calculator)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request - Trigger Agent 2": {
+      "main": [
+        [
+          {
+            "node": "Wait for Agent 2 Execution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Agent 2 Execution": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request - Poll Agent 2 Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request - Poll Agent 2 Status": {
+      "main": [
+        [
+          {
+            "node": "Execute Sub-workflow (SLA Calculator)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Sub-workflow (SLA Calculator)": {
+      "main": [
+        [
+          {
+            "node": "Merge Agent 1, Agent 2 & Sub-workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Agent 1, Agent 2 & Sub-workflow": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook (Chatbot Response)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

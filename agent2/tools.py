@@ -8,6 +8,12 @@ from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 
 try:
+    from agent2.hooks.post_tool_auditor import post_tool_use_hook
+    HAS_HOOK = True
+except ImportError:
+    HAS_HOOK = False
+
+try:
     from agents import function_tool
     HAS_AGENTS_SDK = True
 except ImportError:
@@ -54,6 +60,18 @@ def unlock_user_account(user_email: str, reason: str = "Solicitacao automatizada
     audit_code = f"AUDIT-AD-{uuid.uuid4().hex[:8].upper()}"
     timestamp = datetime.now(timezone.utc).isoformat()
 
+    # Se a conta nao constava no mock, provisiona desbloqueio de contingencia
+    res = json.dumps({
+        "operation": "UNLOCK_USER_ACCOUNT",
+        "email": clean_email,
+        "status": "SUCCESS",
+        "previous_state": "UNKNOWN",
+        "current_state": "ACTIVE",
+        "audit_code": audit_code,
+        "message": f"Comando de desbloqueio propagado no dominio AD para {clean_email}.",
+        "timestamp": timestamp
+    }, ensure_ascii=False)
+
     if clean_email in MOCK_AD_ACCOUNTS:
         account = MOCK_AD_ACCOUNTS[clean_email]
         was_locked = account["account_locked"]
@@ -61,7 +79,7 @@ def unlock_user_account(user_email: str, reason: str = "Solicitacao automatizada
         account["failed_attempts"] = 0
         account["unlocked_at"] = timestamp
 
-        return json.dumps({
+        res = json.dumps({
             "operation": "UNLOCK_USER_ACCOUNT",
             "email": clean_email,
             "status": "SUCCESS",
@@ -72,17 +90,9 @@ def unlock_user_account(user_email: str, reason: str = "Solicitacao automatizada
             "timestamp": timestamp
         }, ensure_ascii=False)
 
-    # Se a conta nao constava no mock, provisiona desbloqueio de contingencia
-    return json.dumps({
-        "operation": "UNLOCK_USER_ACCOUNT",
-        "email": clean_email,
-        "status": "SUCCESS",
-        "previous_state": "UNKNOWN",
-        "current_state": "ACTIVE",
-        "audit_code": audit_code,
-        "message": f"Comando de desbloqueio propagado no dominio AD para {clean_email}.",
-        "timestamp": timestamp
-    }, ensure_ascii=False)
+    if HAS_HOOK:
+        res = post_tool_use_hook("unlock_user_account", {"user_email": user_email, "reason": reason}, res)
+    return res
 
 
 def configure_vpn_failover_route(user_email: str, gateway: str = "BR-SA-02") -> str:
@@ -99,7 +109,7 @@ def configure_vpn_failover_route(user_email: str, gateway: str = "BR-SA-02") -> 
     session_token = f"VPN-FAILOVER-{uuid.uuid4().hex[:10].upper()}"
     timestamp = datetime.now(timezone.utc).isoformat()
 
-    return json.dumps({
+    res = json.dumps({
         "operation": "CONFIGURE_VPN_FAILOVER_ROUTE",
         "email": user_email,
         "target_gateway": gateway,
@@ -109,6 +119,10 @@ def configure_vpn_failover_route(user_email: str, gateway: str = "BR-SA-02") -> 
         "message": f"Rota de contingencia atribuida para o gateway secundario {gateway}.",
         "timestamp": timestamp
     }, ensure_ascii=False)
+
+    if HAS_HOOK:
+        res = post_tool_use_hook("configure_vpn_failover_route", {"user_email": user_email, "gateway": gateway}, res)
+    return res
 
 
 def dispatch_sla_incident(ticket_id: str, severity: str, team: str, justification: str) -> str:
@@ -147,7 +161,15 @@ def dispatch_sla_incident(ticket_id: str, severity: str, team: str, justificatio
     }
     MOCK_ITSM_TICKETS[incident_number] = ticket_record
 
-    return json.dumps(ticket_record, ensure_ascii=False)
+    res = json.dumps(ticket_record, ensure_ascii=False)
+    if HAS_HOOK:
+        res = post_tool_use_hook("dispatch_sla_incident", {
+            "ticket_id": ticket_id,
+            "severity": severity,
+            "team": team,
+            "justification": justification
+        }, res)
+    return res
 
 
 if HAS_AGENTS_SDK:

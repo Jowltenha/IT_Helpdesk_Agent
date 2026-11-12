@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Diagrama de Arquitetura dos 9 Componentes - Helpdesk Agent</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      background-color: #0b0f19;
+      color: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .header h1 {
+      margin: 0 0 8px 0;
+      font-size: 24px;
+      color: #38bdf8;
+    }
+    .header p {
+      margin: 0;
+      font-size: 14px;
+      color: #94a3b8;
+    }
+    .container {
+      width: 100%;
+      max-width: 1440px;
+      background: #0d1117;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      border: 1px solid #1e293b;
+      overflow: hidden;
+    }
+    img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    .table-container {
+      margin-top: 30px;
+      width: 100%;
+      max-width: 1440px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background-color: #111827;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #1f2937;
+    }
+    th, td {
+      padding: 12px 16px;
+      text-align: left;
+      font-size: 13px;
+    }
+    th {
+      background-color: #1e293b;
+      color: #38bdf8;
+      font-weight: 700;
+    }
+    tr:nth-child(even) {
+      background-color: #0f172a;
+    }
+    td {
+      color: #e2e8f0;
+      border-bottom: 1px solid #1f2937;
+    }
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 11px;
+    }
+    .badge-blue { background: #0284c7; color: white; }
+    .badge-green { background: #059669; color: white; }
+    .badge-purple { background: #7c3aed; color: white; }
+    .badge-amber { background: #d97706; color: white; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>IT Helpdesk Agent - Diagrama dos 9 Componentes Arquiteturais</h1>
+    <p>Conforme matriz de avaliação do Bloco (Slide 8) - Correção e Alinhamento Completo</p>
+  </div>
+
+  <div class="container">
+    <img src="diagrama_arquitetura_9_componentes.svg" alt="Diagrama dos 9 Componentes da Arquitetura">
+  </div>
+
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th>#Req</th>
+          <th>Componente do Sistema (Slide 8)</th>
+          <th>Implementação no Repositório</th>
+          <th>Responsabilidade Técnica</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="badge badge-green">#1</span></td>
+          <td><strong>Dois agentes Python independentes</strong></td>
+          <td><code>agent1/</code> e <code>agent2/</code></td>
+          <td>Projetos e pastas desacopladas: Agente 1 (Triagem N1) e Agente 2 (Auto-Remediação N2 / ITSM).</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-green">#2</span></td>
+          <td><strong>Memória conversacional persistente com SQLiteSession</strong></td>
+          <td><code>agent1/memory.py</code></td>
+          <td>Implementada via <code>agents.memory.SQLiteSession</code> do OpenAI Agents SDK em <code>agent1_sessions.db</code>.</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-green">#3</span></td>
+          <td><strong>RAG e Embeddings para recuperação semântica</strong></td>
+          <td><code>agent1/rag.py</code></td>
+          <td>Busca vetorial por similaridade de cosseno com vetores densos de embeddings dos procedimentos SOP da KB.</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-green">#4</span></td>
+          <td><strong>APIs REST dos 2 agentes: /run e /status</strong></td>
+          <td><code>agent1/app.py</code> &amp; <code>agent2/app.py</code></td>
+          <td>Endpoints FastAPI assíncronos: <code>POST /run</code> (retorna 202 com task_id) e <code>GET /status/{task_id}</code>.</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-purple">#5</span></td>
+          <td><strong>Workflow n8n com invocação assíncrona e polling</strong></td>
+          <td><code>workflows/tp3_full_orchestration_workflow.json</code></td>
+          <td>Dispara /run, aguarda em nó Wait e realiza loop de polling em /status até conclusão da LLM.</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-amber">#6</span></td>
+          <td><strong>Servidor MCP expondo ferramentas de ao menos um agente</strong></td>
+          <td><code>agent1/mcp_server.py</code></td>
+          <td>Servidor Model Context Protocol disponibilizando <code>check_system_status</code>, <code>lookup_user_account</code> e <code>query_troubleshooting_kb</code>.</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-purple">#7</span></td>
+          <td><strong>Orquestração dos dois agentes no n8n com roteamento e merge</strong></td>
+          <td><code>workflows/</code></td>
+          <td>Fluxo condicional If/Switch no n8n que conecta a saída da triagem ao disparo da remediação e unifica os resultados.</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-purple">#8</span></td>
+          <td><strong>Terceiro agente dentro do n8n (Agent node)</strong></td>
+          <td>Nó Agent no n8n</td>
+          <td>Agente LLM interno no n8n encarregado de classificar se o incidente exige remediação e orquestrar o merge.</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-blue">#9</span></td>
+          <td><strong>Gatilho (trigger) que dispara o n8n</strong></td>
+          <td><code>chatbot/app.py</code></td>
+          <td>Chatbot Corporativo Web construído em Chainlit, atuando como canal único via Webhook HTTP.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</body>
+</html>

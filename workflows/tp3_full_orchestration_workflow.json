@@ -1,0 +1,298 @@
+{
+  "name": "TP3 - Full Multi-Agent Orchestration Workflow (Slide 8)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "helpdesk-triage",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "node-01-webhook-trigger",
+      "name": "Webhook Trigger (#Req 9 Chatbot)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [180, 320],
+      "webhookId": "webhook-helpdesk-triage-chainlit"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8001/run",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"user_prompt\": \"{{ $json.body.user_prompt }}\",\n  \"session_id\": \"{{ $json.body.session_id }}\"\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "node-02-trigger-agent1",
+      "name": "HTTP Request - Trigger Agent 1 (#Req 4)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [420, 320]
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "seconds"
+      },
+      "id": "node-03-wait-agent1",
+      "name": "Wait for Agent 1 (#Req 5)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [660, 320],
+      "webhookId": "wait-agent1-execution-webhook"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=http://localhost:8001/status/{{ $('HTTP Request - Trigger Agent 1 (#Req 4)').item.json.task_id }}",
+        "options": {}
+      },
+      "id": "node-04-poll-agent1",
+      "name": "HTTP Request - Poll Agent 1 (#Req 5)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 320]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Você é o Agente Classificador e Roteador interno do n8n (Terceiro Agente). Avalie o laudo de triagem do Agente 1:\n- Categoria: {{ $json.result.category }}\n- Severidade: {{ $json.result.severity }}\n- Requer Escalonamento: {{ $json.result.requires_human_escalation }}\n- Ação Recomendada: {{ $json.result.recommended_action }}\n\nDecida se o incidente exige acionamento do Agente 2 de Auto-Remediação para intervenção direta (desbloqueio de AD ou failover de VPN) e sintetize a diretriz de despacho.",
+        "options": {
+          "systemMessage": "Você é o Agente de Decisão Roteadora do n8n. Responda em JSON com os campos: 'should_remediate' (boolean), 'action_type' ('UNLOCK_ACCOUNT', 'VPN_FAILOVER', ou 'NONE') e 'rationale' (string)."
+        }
+      },
+      "id": "node-05-third-agent-node",
+      "name": "Terceiro Agente: Classificador & Roteador (#Req 8)",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [1120, 320]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-remediation-needed",
+              "leftValue": "={{ $('HTTP Request - Poll Agent 1 (#Req 5)').item.json.result.category }}",
+              "rightValue": "Acessos/Senhas",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "cond-vpn-failover",
+              "leftValue": "={{ $('HTTP Request - Poll Agent 1 (#Req 5)').item.json.result.category }}",
+              "rightValue": "Redes/VPN",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        }
+      },
+      "id": "node-06-conditional-routing",
+      "name": "Condicional de Roteamento (#Req 7)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1360, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8002/run",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"ticket_id\": \"TCK-{{ $now.toFormat('yyyyMMdd-HHmmss') }}\",\n  \"user_email\": \"{{ $('Webhook Trigger (#Req 9 Chatbot)').item.json.body.user_prompt.includes('@') ? $('Webhook Trigger (#Req 9 Chatbot)').item.json.body.user_prompt.match(/[\\w.-]+@[\\w.-]+/)[0] : 'maria.souza@empresa.com' }}\",\n  \"category\": \"{{ $('HTTP Request - Poll Agent 1 (#Req 5)').item.json.result.category }}\",\n  \"severity\": \"{{ $('HTTP Request - Poll Agent 1 (#Req 5)').item.json.result.severity }}\",\n  \"recommended_action\": \"{{ $('HTTP Request - Poll Agent 1 (#Req 5)').item.json.result.recommended_action }}\",\n  \"requires_human_escalation\": {{ $('HTTP Request - Poll Agent 1 (#Req 5)').item.json.result.requires_human_escalation }},\n  \"action_type\": \"{{ $('HTTP Request - Poll Agent 1 (#Req 5)').item.json.result.category === 'Acessos/Senhas' ? 'UNLOCK_ACCOUNT' : 'VPN_FAILOVER' }}\"\n}",
+        "options": {}
+      },
+      "id": "node-07-trigger-agent2",
+      "name": "HTTP Request - Trigger Agent 2 (#Req 4)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1620, 200]
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "seconds"
+      },
+      "id": "node-08-wait-agent2",
+      "name": "Wait for Agent 2 (#Req 5)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1840, 200],
+      "webhookId": "wait-agent2-execution-webhook"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=http://localhost:8002/status/{{ $('HTTP Request - Trigger Agent 2 (#Req 4)').item.json.task_id }}",
+        "options": {}
+      },
+      "id": "node-09-poll-agent2",
+      "name": "HTTP Request - Poll Agent 2 (#Req 5)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2060, 200]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "id": "node-10-merge-results",
+      "name": "Merge Agente 1 & Agente 2 (#Req 7)",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [2320, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"status\": \"SUCCESS\",\n  \"session_id\": \"{{ $('Webhook Trigger (#Req 9 Chatbot)').item.json.body.session_id }}\",\n  \"ticket_summary\": \"{{ $('HTTP Request - Poll Agent 1 (#Req 5)').item.json.result.ticket_summary }}\",\n  \"category\": \"{{ $('HTTP Request - Poll Agent 1 (#Req 5)').item.json.result.category }}\",\n  \"severity\": \"{{ $('HTTP Request - Poll Agent 1 (#Req 5)').item.json.result.severity }}\",\n  \"recommended_action\": \"{{ $('HTTP Request - Poll Agent 1 (#Req 5)').item.json.result.recommended_action }}\",\n  \"requires_human_escalation\": {{ $('HTTP Request - Poll Agent 1 (#Req 5)').item.json.result.requires_human_escalation }},\n  \"reasoning_steps\": {{ JSON.stringify($('HTTP Request - Poll Agent 1 (#Req 5)').item.json.result.reasoning_steps) }},\n  \"tools_invoked\": {{ JSON.stringify($('HTTP Request - Poll Agent 1 (#Req 5)').item.json.result.tools_invoked) }},\n  \"confidence_score\": {{ $('HTTP Request - Poll Agent 1 (#Req 5)').item.json.result.confidence_score }},\n  \"remediation\": {{ $json.result ? JSON.stringify($json.result) : 'null' }}\n}",
+        "options": {}
+      },
+      "id": "node-11-respond-webhook",
+      "name": "Respond to Webhook (#Req 9)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2560, 320]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Trigger (#Req 9 Chatbot)": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request - Trigger Agent 1 (#Req 4)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request - Trigger Agent 1 (#Req 4)": {
+      "main": [
+        [
+          {
+            "node": "Wait for Agent 1 (#Req 5)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Agent 1 (#Req 5)": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request - Poll Agent 1 (#Req 5)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request - Poll Agent 1 (#Req 5)": {
+      "main": [
+        [
+          {
+            "node": "Terceiro Agente: Classificador & Roteador (#Req 8)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Terceiro Agente: Classificador & Roteador (#Req 8)": {
+      "main": [
+        [
+          {
+            "node": "Condicional de Roteamento (#Req 7)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Condicional de Roteamento (#Req 7)": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request - Trigger Agent 2 (#Req 4)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge Agente 1 & Agente 2 (#Req 7)",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "HTTP Request - Trigger Agent 2 (#Req 4)": {
+      "main": [
+        [
+          {
+            "node": "Wait for Agent 2 (#Req 5)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Agent 2 (#Req 5)": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request - Poll Agent 2 (#Req 5)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request - Poll Agent 2 (#Req 5)": {
+      "main": [
+        [
+          {
+            "node": "Merge Agente 1 & Agente 2 (#Req 7)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Agente 1 & Agente 2 (#Req 7)": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook (#Req 9)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

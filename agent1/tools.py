@@ -6,6 +6,12 @@ import json
 from typing import Dict, Any, Optional
 
 try:
+    from agent1.hooks.pre_tool_validator import pre_tool_use_hook
+    HAS_HOOK = True
+except ImportError:
+    HAS_HOOK = False
+
+try:
     from agents import function_tool
     HAS_AGENTS_SDK = True
 except ImportError:
@@ -72,6 +78,12 @@ def check_system_status(service_name: str) -> str:
     """
     Consulta o status operacional de um servico de TI (ex: 'vpn', 'folha', 'email', 'erp').
     """
+    if HAS_HOOK:
+        allowed, reason, sanitized_args = pre_tool_use_hook("check_system_status", {"service_name": service_name})
+        if not allowed:
+            return json.dumps({"service_name": service_name, "status": "Bloqueado", "error": reason}, ensure_ascii=False)
+        service_name = sanitized_args.get("service_name", service_name)
+
     key = service_name.lower().strip()
     matched_key = next((k for k in MOCK_SYSTEM_STATUS if k in key or key in k), None)
 
@@ -90,6 +102,12 @@ def lookup_user_account(user_email: str) -> str:
     """
     Consulta o status da conta e permissoes de um colaborador no Active Directory pelo e-mail.
     """
+    if HAS_HOOK:
+        allowed, reason, sanitized_args = pre_tool_use_hook("lookup_user_account", {"user_email": user_email})
+        if not allowed:
+            return json.dumps({"user_email": user_email, "status": "Bloqueado", "error": reason, "account_locked": False}, ensure_ascii=False)
+        user_email = sanitized_args.get("user_email", user_email)
+
     email_clean = user_email.lower().strip()
     if email_clean in MOCK_USER_ACCOUNTS:
         return json.dumps(MOCK_USER_ACCOUNTS[email_clean], ensure_ascii=False)
@@ -106,6 +124,11 @@ def query_troubleshooting_kb(query: str) -> str:
     """
     Consulta a Base de Conhecimento interna de TI para obter procedimentos recomendados.
     """
+    if HAS_HOOK:
+        allowed, reason, sanitized_args = pre_tool_use_hook("query_troubleshooting_kb", {"query": query})
+        if not allowed:
+            return json.dumps({"query": query, "status": "Bloqueado", "error": reason}, ensure_ascii=False)
+        query = sanitized_args.get("query", query)
     q = query.lower()
     if "403" in q or "acesso negado" in q or "permissao" in q:
         return json.dumps({

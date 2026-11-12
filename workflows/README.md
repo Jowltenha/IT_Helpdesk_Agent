@@ -1,43 +1,77 @@
-# Workflows n8n - Integracao com os Agentes de TI (TP3)
+# Workflows n8n - Orquestração Multi-Agente Assíncrona (TP3 & TP4)
 
-Este diretorio contem o primeiro workflow funcional do **n8n** desenvolvido para disparar o **Agente 1 (Triagem de TI N1)** e capturar sua resposta estruturada.
+Este diretório contém os workflows oficiais do **n8n** para orquestrar de forma desacoplada o **Agente 1 (Triagem N1)** e o **Agente 2 (Auto-Remediação N2)**, integrando **AI Agent Node com LLM e Tool**, **Sub-workflow Reutilizável de SLA** e o **Gatilho Webhook (Chatbot Chainlit)**.
 
 ---
 
-## 📁 Arquivos deste Diretorio
+## 📁 Workflows Disponíveis
 
-- `tp3_agent1_trigger_workflow.json`: Exportacao oficial do workflow em formato JSON compativel com o n8n.
+### 1. `tp4_main_orchestration_workflow.json` (Orquestração Completa TP4)
+Workflow avançado que orquestra todo o ciclo assíncrono dos dois agentes com componentes de alto nível:
+- **Nó 1 (Gatilho):** `Webhook Trigger` conectado ao Chatbot Corporativo Web (Chainlit via `POST /webhook/helpdesk-triage-tp4`).
+- **Nó 2 (Invocação Agente 1):** `HTTP Request POST http://localhost:8001/run` (devolve `202 Accepted` + `task_id`).
+- **Nó 3 (Pausa Assíncrona):** `Wait Node` (2 segundos de pausa não-bloqueante).
+- **Nó 4 (Polling Agente 1):** `HTTP Request GET http://localhost:8001/status/{task_id}` (repete até `status: done`).
+- **Nó 5 (Agent Node de Alto Nível):** `AI Agent Node` (`@n8n/n8n-nodes-langchain.agent`) conectado a:
+  - **LLM Node:** `OpenAI Chat Model` (`@n8n/n8n-nodes-langchain.lmChatOpenAi`).
+  - **Tool Node:** `Custom Tool - IT Policy Checker` (`@n8n/n8n-nodes-langchain.toolCustom`) para consulta de políticas de TI.
+  - *Função:* Arbitra sobre a severidade e valida se o Agente 2 deve ser acionado.
+- **Nó 6 (Roteamento Condicional):** `If Node` (avalia se a categoria é `Acessos/Senhas` ou `Redes/VPN` demandando remediação).
+- **Nó 7 (Invocação Agente 2):** `HTTP Request POST http://localhost:8002/run`.
+- **Nó 8 (Pausa Assíncrona):** `Wait Node` (2 segundos).
+- **Nó 9 (Polling Agente 2):** `HTTP Request GET http://localhost:8002/status/{task_id}`.
+- **Nó 10 (Invocação de Sub-workflow):** `Execute Workflow Node` que dispara o sub-workflow isolado `tp4_subworkflow_sla_calculator`.
+- **Nó 11 (Merge de Dados):** `Merge Node` unificando triagem N1, remediação N2 e metadados de SLA.
+- **Nó 12 (Resposta):** `Respond to Webhook` devolvendo o payload final estruturado ao Chatbot Chainlit.
+
+---
+
+### 2. `tp4_subworkflow_sla_calculator.json` (Sub-workflow Reutilizável de SLA)
+Sub-workflow modular que encapsula a lógica de cálculo de SLA, validação de plantão e prazos contratuais:
+- **Nó 1:** `Execute Workflow Trigger` (permite invocação tanto pelo workflow principal quanto de forma 100% isolada).
+- **Nó 2:** `Code Node` (JavaScript) que processa a matriz corporativa de SLA:
+  - Crítica: 30 minutos
+  - Alta: 120 minutos
+  - Média: 480 minutos
+  - Baixa: 1440 minutos
+  - Calcula o deadline exato no formato ISO 8601 (`sla_deadline_iso`).
+- **Nó 3:** `If Node` verificando criticidade (SLA <= 60 minutos).
+- **Nós 4 e 5:** Sinalização de prioridade (`PAGERDUTY_ALERT_TRIGGERED` ou `STANDARD_QUEUE`).
+
+---
+
+### 3. Workflows Históricos do TP3
+- `tp3_full_orchestration_workflow.json`: Orquestração base dos 9 componentes do Slide 8.
+- `tp3_agent1_trigger_workflow.json`: Teste unitário isolado da API do Agente 1.
 
 ---
 
 ## 🛠️ Como Importar e Executar no n8n
 
-1. **Inicie o Agente 1 localmente:**
+1. **Inicie os Dois Agentes FastAPI em Terminais Distintos:**
    ```bash
-   # No terminal integrado do Antigravity
-   uvicorn agent1.app:app --host 0.0.0.0 --port 8001
+   # Terminal 1 - Agente 1 (Porta 8001)
+   uvicorn agent1.app:app --host 0.0.0.0 --port 8001 --reload
+
+   # Terminal 2 - Agente 2 (Porta 8002)
+   uvicorn agent2.app:app --host 0.0.0.0 --port 8002 --reload
    ```
 
-2. **Abra o n8n no navegador:**
-   - Acesse `http://localhost:5678` (ou a URL da sua instancia do n8n).
+2. **Abra o n8n no Navegador:**
+   - Acesse `http://localhost:5678`.
 
-3. **Importe o Workflow:**
-   - No menu lateral do n8n, clique em **Workflows** -> **Add Workflow** (ou `...` no canto superior direito).
-   - Selecione **Import from File...** e aponte para o arquivo `workflows/tp3_agent1_trigger_workflow.json`.
+3. **Importe Primeiro o Sub-workflow:**
+   - No n8n, vá em **Workflows** -> **Import from File...**
+   - Selecione `workflows/tp4_subworkflow_sla_calculator.json`.
+   - Salve e ative o sub-workflow (anote o ID gerado se necessário).
 
-4. **Execute o Teste:**
-   - Clique no botao **"Test workflow"** (ou no no inicial *"When clicking ‘Execute workflow’"*).
-   - O n8n executara o fluxo sequencial:
-     1. **Set Ticket Data:** Define o texto do chamado corporativo e o ID da sessao.
-     2. **HTTP Request - Trigger Agent 1:** Envia `POST http://localhost:8001/run` e recebe imediatamente `HTTP 202 Accepted` com `task_id`.
-     3. **Wait for Agent Execution:** Pausa o fluxo por 2 segundos para processamento em background da LLM, ferramentas e RAG.
-     4. **HTTP Request - Poll Agent 1 Status:** Consulta `GET http://localhost:8001/status/{{task_id}}` e recebe o `result` tipado com `HelpdeskResponse`.
-     5. **Format Agent 1 Output:** Extrai os campos `ticket_summary`, `category`, `severity`, `recommended_action` e `requires_human_escalation`.
+4. **Importe o Workflow Principal:**
+   - Selecione `workflows/tp4_main_orchestration_workflow.json`.
+   - Vincule o nó `Execute Sub-workflow` ao sub-workflow recém-importado.
+   - Ative o workflow.
 
----
-
-## 🚀 Projecao para o TP4: Orquestracao Completa de Agentes
-
-No **TP4**, este workflow sera estendido para implementar a orquestracao deterministica completa entre o **Agent 1 (Triagem)** e o **Agent 2 (Remediacao N2)**:
-- Um no condicional **If / Switch** avaliara se `requires_human_escalation == true` ou se o problema envolve credenciais/redes.
-- Em caso afirmativo, o n8n disparara `POST http://localhost:8002/run` no **Agent 2**, repassando o e-mail e a categoria para execucao da auto-remediacao (desbloqueio de AD ou failover de VPN) sem qualquer dependencia direta entre os codigos de ambos os agentes.
+5. **Teste com o Chatbot Chainlit:**
+   ```bash
+   chainlit run chatbot/app.py -w
+   ```
+   Envie uma mensagem (ex: *"Conta bloqueada na folha de pagamento para maria.souza@empresa.com"*). O pipeline completo será executado com os nós em verde no n8n!

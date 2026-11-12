@@ -1,114 +1,173 @@
-# IT Helpdesk Agent - Arquitetura de Agentes Desacoplados (TP3)
+# IT Helpdesk Agent - Arquitetura de Agentes de IA Desacoplados
 
-Este repositório contém a evolução completa do projeto de **Agentes de IA para Suporte de TI Corporativo**, contemplando:
-- **TP1:** Componente funcional inicial de triagem com Pydantic v2 e cliente assíncrono.
-- **TP2:** Protótipo funcional com Tools Python (`@function_tool`), memória relacional SQLite, RAG semântico por embeddings e raciocínio encadeado (*Prompt Chaining* / CoT).
-- **TP3:** Transformação em **Microserviços Independentes via FastAPI**, introdução do **Segundo Agente (Remediação N2 / ITSM)**, documentação individual com **CLAUDE.md** sob *Context Engineering*, primeiro workflow **n8n** e consolidação final do pipeline de prompts.
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-Assíncrono-009688.svg)](https://fastapi.tiangolo.com/)
+[![OpenAI Agents SDK](https://img.shields.io/badge/OpenAI%20Agents%20SDK-0.21.0-412991.svg)](https://github.com/openai/openai-agents-python)
+[![n8n Orchestrator](https://img.shields.io/badge/n8n-Orquestração%20Multi--Agente-ea580c.svg)](https://n8n.io/)
+[![MCP](https://img.shields.io/badge/Model%20Context%20Protocol-2.0.0-f59e0b.svg)](https://modelcontextprotocol.io/)
+
+Este repositório contém a implementação do **Sistema de Agentes Inteligentes de Suporte de TI Corporativo**, contemplando triagem diagnóstica N1, auto-remediação técnica N2 e orquestração assíncrona.
+
+> 📌 **Alinhamento Arquitetural:** O projeto atende integralmente aos **9 componentes do sistema definidos no Slide 8** e às correções da **Rubrica 12**.
 
 ---
 
-## 📁 Estrutura de Diretórios do Projeto (TP3)
+## 🏛️ Matriz dos 9 Componentes da Arquitetura (Slide 8)
+
+| #Req | Componente do Sistema | Implementação no Projeto | Responsabilidade Técnica |
+| :---: | :--- | :--- | :--- |
+| **1** | **Dois agentes Python independentes** | `agent1/` e `agent2/` | Pastas e microserviços desacoplados: Agente 1 (Triagem N1) e Agente 2 (Auto-Remediação N2 / ITSM). |
+| **2** | **Memória persistente com `SQLiteSession`** | `agent1/memory.py` | Implementada exclusivamente no Agente 1 via `agents.memory.SQLiteSession` do OpenAI Agents SDK (`agent1_sessions.db`). |
+| **3** | **RAG por Embeddings Vetoriais** | `agent1/rag.py` | Busca semântica densa com similaridade de cosseno para recuperação de procedimentos SOP da Base de Conhecimento. |
+| **4** | **APIs REST dos 2 agentes (`/run` e `/status`)** | `agent1/app.py` & `agent2/app.py` | FastAPI assíncrono: `POST /run` (retorna `202 Accepted` com `task_id` imediato) e `GET /status/{task_id}` com `BackgroundTasks`. |
+| **5** | **Workflow n8n com invocação assíncrona & polling** | `workflows/tp3_full_orchestration_workflow.json` | Dispara `/run`, pausa via Wait Node (2s) e executa loop de polling em `/status` até a conclusão da LLM sem risco de timeout. |
+| **6** | **Servidor MCP expondo ferramentas de agente** | `agent1/mcp_server.py` | Servidor Model Context Protocol expondo `check_system_status`, `lookup_user_account` e `query_troubleshooting_kb`. |
+| **7** | **Orquestração dos dois agentes no n8n** | `workflows/` | Roteamento condicional (If/Switch) que analisa o laudo do Agente 1, aciona o Agente 2 e executa o merge dos dados. |
+| **8** | **Terceiro agente dentro do n8n (Agent node)** | Nó de Agente LLM no n8n | Agente cognitivo encarregado de classificar se o incidente exige intervenção e coordenar o merge dos pareceres. |
+| **9** | **Gatilho (trigger) único que dispara o n8n** | `chatbot/app.py` | **Chatbot Corporativo Web (Chainlit)** conectado via Webhook HTTP ao n8n, mantendo `session_id` persistente. |
+
+---
+
+## 🖼️ Diagrama de Arquitetura dos 9 Componentes
+
+A arquitetura do sistema e o fluxo de dados entre os 9 componentes são ilustrados no diagrama oficial abaixo:
+
+![Diagrama de Arquitetura dos 9 Componentes](diagrama_arquitetura_9_componentes.svg)
+
+*Para abrir a visualização em alta definição no navegador, abra [`visualizar_diagrama.html`](visualizar_diagrama.html).*
+
+---
+
+## 📁 Estrutura do Repositório
 
 ```text
 IT_Helpdesk_Agent/
-├── agent1/                         # AGENTE 1: Triagem de Suporte de TI N1 (Porta 8001)
+├── agent1/                         # COMPONENTES 1, 2, 3, 4, 6 (TP3/TP4): Agente 1 (Triagem N1 - Porta 8001)
 │   ├── app.py                      # FastAPI App (POST /run 202, GET /status/{task_id}, GET /health)
-│   ├── runner.py                   # HelpdeskAgentRunner assíncrono (LLM, Tools, RAG, Memória)
-│   ├── models.py                   # Pydantic v2: RunRequest, HelpdeskResponse, TaskStatusResponse
-│   ├── tools.py                    # Ferramentas (@function_tool): check_system_status, lookup_user, KB
-│   ├── memory.py                   # SQLiteSession (agent1_sessions.db)
-│   ├── rag.py                      # VectorEmbeddingRAG (TF-IDF + Similaridade de Cosseno)
-│   ├── test_agent1_api.py          # Testes automatizados da API do Agente 1
-│   └── CLAUDE.md                   # Context Engineering: Hierarchical Context Layering
+│   ├── runner.py                   # HelpdeskAgentRunner com OpenAI Agents SDK (Agent + Runner)
+│   ├── models.py                   # Modelos Pydantic v2: RunRequest, HelpdeskResponse, TaskStatus
+│   ├── tools.py                    # Ferramentas (@function_tool) com interceptação de Hook
+│   ├── memory.py                   # SQLiteSession oficial do SDK (agent1_sessions.db)
+│   ├── rag.py                      # VectorEmbeddingRAG (Vetores Densos de Embeddings + Cosseno)
+│   ├── mcp_server.py               # Servidor MCP expondo ferramentas do Agente 1 (#Req 6)
+│   ├── settings.json               # Governança formal: políticas allow, deny, ask e hooks
+│   ├── SKILL.md                    # Skill reutilizável: active-directory-diagnostics
+│   ├── hooks/                      # Hooks de segurança automatizados
+│   │   ├── pre_tool_validator.py   # Hook PreToolUse: sanitização de entrada e validação de e-mails
+│   │   ├── test_hook.py            # Teste verificável do hook PreToolUse
+│   │   └── hook_audit.log          # Trilha de auditoria gerada pelo hook
+│   ├── subagents/                  # Subagentes especializados com isolamento de contexto
+│   │   └── kb_researcher.md        # Subagente pesquisador de SOPs da Base de Conhecimento
+│   ├── test_agent1_api.py          # Testes automatizados de API e polling
+│   ├── AGENTS.md                   # Catálogo formal de contratos de entrada e saída
+│   └── CLAUDE.md                   # Fonte única de verdade técnica do Agente 1
 │
-├── agent2/                         # AGENTE 2: Auto-Remediação e Despacho N2 (Porta 8002)
+├── agent2/                         # COMPONENTES 1, 4 (TP3/TP4): Agente 2 (Auto-Remediação N2 - Porta 8002)
 │   ├── app.py                      # FastAPI App (POST /run 202, GET /status/{task_id}, GET /health)
-│   ├── runner.py                   # RemediationAgentRunner assíncrono
-│   ├── models.py                   # Pydantic v2: RemediationRequest, RemediationResponse, TaskStatus
+│   ├── runner.py                   # RemediationAgentRunner assíncrono com gravação real de logs
+│   ├── models.py                   # Pydantic v2: RemediationRequest, RemediationResponse
 │   ├── tools.py                    # Ferramentas: unlock_user_account, vpn_failover, dispatch_sla
-│   ├── test_agent2_api.py          # Testes automatizados da API do Agente 2
-│   └── CLAUDE.md                   # Context Engineering: Inverted Pyramid & Constraint Anchoring
+│   ├── settings.json               # Governança formal: políticas allow, deny, ask
+│   ├── SKILL.md                    # Skill reutilizável: sla-incident-dispatch
+│   ├── hooks/                      # Hooks de segurança e compliance
+│   │   ├── post_tool_auditor.py    # Hook PostToolUse: hash SHA-256 e integridade SOX/LGPD
+│   │   ├── test_hook.py            # Teste verificável do hook PostToolUse
+│   │   └── security_audit.log      # Trilha de auditoria criptográfica
+│   ├── subagents/                  # Subagentes especializados
+│   │   └── sla_auditor.md          # Subagente auditor de conformidade de SLA e ITSM
+│   ├── test_agent2_api.py          # Testes automatizados de API e auditoria
+│   ├── AGENTS.md                   # Catálogo formal de contratos do Agente 2
+│   └── CLAUDE.md                   # Fonte única de verdade técnica do Agente 2
 │
-├── workflows/                      # Integração com n8n
-│   ├── tp3_agent1_trigger_workflow.json  # Workflow exportado em JSON pronto para importação
-│   └── README.md                   # Guia passo a passo de importação e execução no n8n
+├── chatbot/                        # COMPONENTE 9: Gatilho Unificado de Entrada
+│   ├── app.py                      # Chatbot Corporativo Web (Chainlit) via Webhook n8n
+│   └── README.md                   # Instruções de execução do Chainlit
 │
-├── integration/                    # Contratos de API e Orquestração Futura
-│   └── api_contract.md             # Contrato de API REST dos dois agentes e plano para TP4
+├── workflows/                      # COMPONENTES 5, 7, 8: Orquestração no n8n (TP3 e TP4)
+│   ├── tp4_main_orchestration_workflow.json  # Workflow TP4 com AI Agent Node, Sub-workflow e Merge
+│   ├── tp4_subworkflow_sla_calculator.json   # Sub-workflow modular reutilizável de SLA
+│   ├── tp3_full_orchestration_workflow.json  # Workflow base dos 9 componentes do Slide 8
+│   ├── tp3_agent1_trigger_workflow.json      # Workflow unitário de teste do Agente 1
+│   └── README.md                   # Guia de importação e nós do n8n
 │
-├── evaluation/                     # Avaliação Consolidada do Pipeline de Prompts
-│   ├── evaluate.py                 # Benchmark automatizado das 3 variantes (A, B e C)
-│   ├── eval_results_final.json     # Resultados numéricos da avaliação comparativa
-│   └── final_prompt_evaluation.md  # Relatório analítico, justificativa técnica e diagnóstico de prompt ineficaz
+├── spec/                           # Documentação e Especificações Técnicas
+│   └── especificacao_projeto.md    # Especificação detalhada dos 9 componentes do Slide 8
 │
-├── RELATORIO_TECNICO_TP3.md        # Relatório Técnico Completo de Entrega do TP3
-├── RELATORIO_TECNICO.md            # Relatório Técnico do TP2 (Arquivo Histórico)
-└── README.md                       # Documentação principal
+├── evaluation/                     # Avaliação Comparativa de Prompts
+│   ├── evaluate.py                 # Benchmark das variantes A, B e C
+│   ├── eval_results_final.json     # Resultados numéricos consolidados
+│   └── final_prompt_evaluation.md  # Relatório analítico e diagnóstico de prompt ineficaz
+│
+├── diagrama_arquitetura_9_componentes.svg  # Imagem vetorial oficial da arquitetura (Slide 8)
+├── visualizar_diagrama.html                # Visualizador web interativo do diagrama
+├── RELATORIO_TECNICO_TP4.md                # Relatório Técnico Completo de Entrega do TP4
+├── RELATORIO_TECNICO_TP4_OBSIDIAN.md       # Relatório formatado com tags e links para Obsidian
+└── README.md                               # Este arquivo
 ```
 
 ---
 
-## ⚙️ Como Executar os Agentes e Testes Localmente
+## 🚀 Como Executar o Sistema Completo
 
 ### 1. Ativar o Ambiente Virtual
 ```bash
 source .venv/bin/activate
 ```
 
-### 2. Executar o Agente 1 (Triagem N1 - Porta 8001)
+### 2. Iniciar o Agente 1 (Triagem N1 - Porta 8001)
 ```bash
-# Iniciar o servidor HTTP FastAPI:
 uvicorn agent1.app:app --host 0.0.0.0 --port 8001 --reload
-
-# Em outro terminal, executar a suíte de testes automatizados da API:
-python agent1/test_agent1_api.py
 ```
 
-### 3. Executar o Agente 2 (Auto-Remediação N2 - Porta 8002)
+### 3. Iniciar o Agente 2 (Auto-Remediação N2 - Porta 8002)
 ```bash
-# Iniciar o servidor HTTP FastAPI:
 uvicorn agent2.app:app --host 0.0.0.0 --port 8002 --reload
-
-# Em outro terminal, executar a suíte de testes automatizados da API:
-python agent2/test_agent2_api.py
 ```
 
-### 4. Executar o Benchmark Final de Avaliação de Prompts
+### 4. Iniciar o Chatbot Corporativo Web (Chainlit - Porta 8000)
 ```bash
+chainlit run chatbot/app.py -w
+```
+Acesse `http://localhost:8000` no navegador para interagir com o agente.
+
+### 5. Iniciar o Servidor MCP (Opcional para Integrações Externas)
+```bash
+python agent1/mcp_server.py
+```
+
+### 6. Executar a Suíte de Testes Automatizados
+```bash
+# Teste da API do Agente 1:
+python agent1/test_agent1_api.py
+
+# Teste da API do Agente 2:
+python agent2/test_agent2_api.py
+
+# Benchmark de Avaliação de Prompts:
 python evaluation/evaluate.py
 ```
 
 ---
 
-## 🌐 Testando os Endpoints via cURL
+## 📡 Exemplos de Chamadas cURL às APIs REST
 
-### Agente 1: Disparo de Triagem Assíncrona
+### Agente 1: Triagem Assíncrona N1
 ```bash
+# Disparo do Chamado (Retorna 202 Accepted + task_id imediatamente)
 curl -X POST http://localhost:8001/run \
   -H "Content-Type: application/json" \
   -d '{
-    "user_prompt": "Não consigo acessar a folha de pagamento. Erro 403. E-mail maria.souza@empresa.com. Urgente até 17h.",
-    "session_id": "sessao_demo_curl"
+    "user_prompt": "Não consigo acessar a folha de pagamento. Erro 403 Acesso Negado. E-mail maria.souza@empresa.com. Urgente até 17h.",
+    "session_id": "sessao_demo_01"
   }'
-```
-*Retorno imediato (202 Accepted):*
-```json
-{
-  "task_id": "task_a1b2c3d4e5f6",
-  "status": "pending",
-  "message": "Chamado recebido com sucesso. Processamento de triagem iniciado em background."
-}
+
+# Consulta do Laudo Estruturado (Polling em GET /status)
+curl -X GET http://localhost:8001/status/{task_id}
 ```
 
-*Consulta de status e resultado:*
+### Agente 2: Auto-Remediação N2
 ```bash
-curl -X GET http://localhost:8001/status/task_a1b2c3d4e5f6
-```
-
----
-
-### Agente 2: Disparo de Auto-Remediação
-```bash
+# Disparo da Remediação
 curl -X POST http://localhost:8002/run \
   -H "Content-Type: application/json" \
   -d '{
@@ -120,28 +179,20 @@ curl -X POST http://localhost:8002/run \
     "requires_human_escalation": false,
     "action_type": "UNLOCK_ACCOUNT"
   }'
-```
 
-*Consulta de status e auditoria:*
-```bash
-curl -X GET http://localhost:8002/status/rem_task_1a2b3c4d5e6f
+# Consulta da Trilha de Auditoria e SLA
+curl -X GET http://localhost:8002/status/{task_id}
 ```
 
 ---
 
-## 🔄 Importação do Workflow no n8n
+## 📊 Conformidade das Entregas (Rubrica 12)
 
-1. Certifique-se de que o **Agente 1** está ativo na porta `8001`.
-2. Abra o **n8n** no navegador (`http://localhost:5678`).
-3. Vá em **Workflows** -> **Import from File...** e selecione `workflows/tp3_agent1_trigger_workflow.json`.
-4. Clique em **"Test workflow"** para ver o acionamento via nó HTTP e a captura da resposta em tempo real.
-
----
-
-## 📑 Entregáveis do TP3
-
-- **Relatório Técnico do TP3:** [`RELATORIO_TECNICO_TP3.md`](RELATORIO_TECNICO_TP3.md)
-- **Contrato de API e Integração:** [`integration/api_contract.md`](integration/api_contract.md)
-- **Avaliação Final e Diagnóstico de Prompts:** [`evaluation/final_prompt_evaluation.md`](evaluation/final_prompt_evaluation.md)
-- **CLAUDE.md do Agente 1:** [`agent1/CLAUDE.md`](agent1/CLAUDE.md)
-- **CLAUDE.md do Agente 2:** [`agent2/CLAUDE.md`](agent2/CLAUDE.md)
+1. **Gatilho de Entrada Definido:** Chatbot Corporativo Web (Chainlit via Webhook), abandonando opções genéricas.
+2. **Diagrama em Formato de Imagem:** Entregue em vetor SVG de alta fidelidade (`diagrama_arquitetura_9_componentes.svg`) com todos os 9 componentes numerados do Slide 8.
+3. **Descrição Textual dos 9 Componentes:** Descrição arquitetural completa em `spec/especificacao_projeto.md` cobrindo os 9 componentes sistêmicos.
+4. **Core com OpenAI Agents SDK:** Agente 1 e Agente 2 estruturados com `Agent`, `Runner`, `tools` e `output_type=HelpdeskResponse`.
+5. **Eliminação de Respostas Prontas:** Remoção de mocks fingidos e gravação dos logs reais em `execution_log.json`.
+6. **RAG por Embeddings:** Substituição de TF-IDF por vetores densos de embeddings e similaridade de cosseno.
+7. **Memória Persistente:** SQLite oficial do SDK (`SQLiteSession`).
+8. **Servidor MCP:** Servidor padrão implementado em `agent1/mcp_server.py`.

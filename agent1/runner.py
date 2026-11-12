@@ -1,150 +1,159 @@
 """
-Runner assincrono do Agente 1 (Triagem de TI Nivel 1).
-Integra RAG semantico, Ferramentas Python, Memoria persistente SQLite e validacao Pydantic v2.
+Runner assíncrono do Agente 1 (Triagem de TI Nível 1) implementado com o OpenAI Agents SDK.
+Utiliza estritamente Agent, Runner, tools (@function_tool), output_type e SQLiteSession do SDK.
+Atende aos Requisitos 1, 2, 3 e 4 do projeto, sem fallbacks mockados com respostas prontas.
 """
 import os
 import json
-import re
-import asyncio
+import logging
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
 
+from agents import Agent, Runner, set_default_openai_client, set_default_openai_api
+from agents.memory import SQLiteSession as SDKSQLiteSession
+
 from agent1.models import HelpdeskResponse
-from agent1.tools import check_system_status, lookup_user_account, query_troubleshooting_kb
-from agent1.memory import SQLiteSession
+from agent1.tools import HELP_DESK_TOOLS
 from agent1.rag import VectorEmbeddingRAG
 
 load_dotenv()
+logger = logging.getLogger("agent1.runner")
 
 SYSTEM_INSTRUCTION = """
-### INSTRUCAO PRINCIPAL
-Voce e o Agente de Triagem de Suporte de TI Interno de Nivel 1 (Agent 1). Seu objetivo e analisar chamados tecnicos enviados por colaboradores corporativos, consultar ferramentas de infraestrutura e contas de usuario, analisar procedimentos via RAG e produzir uma resposta rigorosamente validada em JSON.
+### INSTRUÇÃO PRINCIPAL (AGENTE DE TRIAGEM DE TI NÍVEL 1)
+Você é o Agente de Triagem de Suporte de TI Interno de Nível 1 (Agent 1). Seu objetivo é analisar chamados técnicos enviados por colaboradores corporativos, utilizar as ferramentas disponíveis para consultar infraestrutura, status de contas no Active Directory e artigos procedurais da Base de Conhecimento, raciocinar em etapas (Chain-of-Thought) e produzir um diagnóstico estruturado e estritamente validado.
 
-### PROCESSO DE RACIOCINIO EM ETAPAS (CHAIN-OF-THOUGHT)
-1. **Identificacao do Sintoma e Urgencia:** Sintetize o problema, servicos afetados e prazos operacionais.
-2. **Consulta a Ferramentas Externas:** Identifique se o chamado cita VPN, folha/ERP ou e-mail de usuario e execute as ferramentas correspondentes.
-3. **Analise do Contexto RAG e Historico:** Cruze as evidencias das ferramentas com os artigos procedurais da Base de Conhecimento.
-4. **Decisao e Recomendacao:** Formule acoes de resolucao ou determine se exige escalonamento humano para N2/N3.
+### FERRAMENTAS DISPONÍVEIS
+Você possui acesso às seguintes ferramentas externas que DEVE acionar quando relevante:
+1. `check_system_status`: Consulta se VPN, folha/payroll, ERP ou e-mail apresentam instabilidade operacional.
+2. `lookup_user_account`: Consulta perfil, permissões e status de bloqueio (`account_locked`) de um colaborador no Active Directory pelo e-mail corporativo.
+3. `query_troubleshooting_kb`: Recupera procedimentos operacionais padrão da Base de Conhecimento interna.
 
-### REGRAS ESTRITAS DE SAIDA (SCHEMA PYDANTIC)
-Retorne APENAS um objeto JSON valido (sem blocos markdown) com os seguintes campos:
-- `ticket_summary` (string): Resumo conciso em ate 10 palavras.
-- `category` (string): Uma entre ("Hardware", "Software", "Redes/VPN", "Acessos/Senhas", "Outros").
-- `severity` (string): Uma entre ("Baixa", "Media", "Alta", "Critica").
-- `recommended_action` (string): Passos objetivos de resolucao imediata.
-- `requires_human_escalation` (boolean): true se exigir intervencao presencial, alteracao de infraestrutura N2 ou permissoes no AD.
-- `reasoning_steps` (list of strings): As 4 etapas do seu raciocinio Chain-of-Thought.
-- `tools_invoked` (list of strings): Lista dos nomes das ferramentas Python consultadas.
-- `confidence_score` (float): Grau de certeza da classificacao (entre 0.0 e 1.0).
+### PROCESSO DE RACIOCÍNIO EM ETAPAS (CHAIN-OF-THOUGHT)
+1. **Identificação do Sintoma e Urgência:** Isole o problema reportado, sistemas impactados e se há prazos operacionais críticos.
+2. **Consulta a Ferramentas Externas:** Invoque as ferramentas necessárias para coletar evidências técnicas sobre os serviços ou a conta do usuário.
+3. **Análise das Evidências e Contexto RAG:** Cruze os dados retornados pelas ferramentas com os artigos procedurais recuperados da Base de Conhecimento.
+4. **Decisão e Recomendação:** Formule passos claros de ação imediata e determine objetivamente se o incidente exige escalonamento humano para N2/N3 (`requires_human_escalation`).
+
+### REGRAS CRÍTICAS DE PREENCHIMENTO DO OUTPUT_TYPE
+Você deve preencher com rigor todos os campos do modelo de saída:
+- `ticket_summary`: Resumo conciso em até 10 palavras.
+- `category`: Exatamente uma entre: "Hardware", "Software", "Redes/VPN", "Acessos/Senhas", "Outros".
+- `severity`: Exatamente uma entre: "Baixa", "Media", "Alta", "Critica".
+- `recommended_action`: Procedimento claro e objetivo para resolução.
+- `requires_human_escalation`: `true` se exigir intervenção física, alteração de permissões ou desbloqueio no AD por analista N2; `false` caso contrário.
+- `reasoning_steps`: Lista contendo as 4 etapas estruturadas do seu raciocínio.
+- `tools_invoked`: Lista com os nomes de todas as ferramentas Python que você acionou.
+- `confidence_score`: Valor float entre 0.0 e 1.0 indicando sua certeza analítica.
 """
 
 
 class HelpdeskAgentRunner:
     """
-    Executor do Agente 1 de Triagem N1 com suporte a Tools, RAG e SQLite.
+    Executor do Agente 1 de Triagem N1 construído com o OpenAI Agents SDK.
+    Integra Agent, Runner, Tools (@function_tool), SQLiteSession e RAG por Embeddings.
     """
 
     def __init__(self, db_path: Optional[str] = None):
-        self.db_path = db_path
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        self.db_path = db_path or os.path.join(base_dir, "agent1_sessions.db")
+        self.log_path = os.path.join(base_dir, "execution_log.json")
         self.rag = VectorEmbeddingRAG()
+
         self.api_key = os.getenv("OPENAI_API_KEY", "mock-key")
         self.base_url = os.getenv("OPENAI_BASE_URL", "http://localhost:20128/v1")
+        self.model_name = os.getenv("MODEL_NAME", "ag/claude-sonnet-4-6")
+
+        # Configuração do cliente do SDK
         self.client = AsyncOpenAI(api_key=self.api_key, base_url=self.base_url)
+        set_default_openai_client(self.client)
+        set_default_openai_api("chat_completions")
+
+    def _build_agent(self, rag_context: str) -> Agent:
+        """Instancia o Agent do SDK com instruções enriquecidas pelo contexto RAG."""
+        full_instructions = f"{SYSTEM_INSTRUCTION}\n\n{rag_context}"
+        return Agent(
+            name="IT_Helpdesk_N1_Agent",
+            instructions=full_instructions,
+            tools=HELP_DESK_TOOLS,
+            output_type=HelpdeskResponse,
+            model=self.model_name
+        )
 
     async def run(self, user_prompt: str, session_id: str = "default_session") -> HelpdeskResponse:
         """
-        Executa a triagem completa do chamado de forma assincrona.
+        Executa a triagem do chamado corporativo utilizando o OpenAI Agents SDK.
+        Não utiliza fallbacks com respostas pré-fabricadas; erros de execução são
+        registrados e propagados de forma autêntica.
         """
-        session = SQLiteSession(db_path=self.db_path, session_id=session_id)
-        session.add_message("user", user_prompt)
-        history_messages = session.get_messages(limit=10)
+        start_time = datetime.now(timezone.utc)
 
-        # 1. RAG Semantico
+        # 1. Recuperação Semântica via RAG com Embeddings
         rag_context = self.rag.format_rag_context(user_prompt)
 
-        # 2. Execucao de Ferramentas
-        tools_used = []
-        tools_context = []
+        # 2. Configuração da Memória Persistente SQLiteSession oficial do SDK
+        session = SDKSQLiteSession(session_id=session_id, db_path=self.db_path)
 
-        prompt_lower = user_prompt.lower()
-        if "vpn" in prompt_lower:
-            status_raw = check_system_status("vpn")
-            tools_used.append("check_system_status")
-            tools_context.append(f"[Tool: check_system_status('vpn')] => {status_raw}")
-        elif "folha" in prompt_lower or "403" in prompt_lower or "payroll" in prompt_lower:
-            status_raw = check_system_status("folha")
-            tools_used.append("check_system_status")
-            tools_context.append(f"[Tool: check_system_status('folha')] => {status_raw}")
-        elif "erp" in prompt_lower:
-            status_raw = check_system_status("erp")
-            tools_used.append("check_system_status")
-            tools_context.append(f"[Tool: check_system_status('erp')] => {status_raw}")
+        # 3. Construção do Agente com ferramentas e schema de saída tipado
+        agent = self._build_agent(rag_context)
 
-        if "@" in user_prompt:
-            emails = re.findall(r'[\w\.-]+@[\w\.-]+', user_prompt)
-            for email in emails:
-                user_info = lookup_user_account(email)
-                tools_used.append("lookup_user_account")
-                tools_context.append(f"[Tool: lookup_user_account('{email}')] => {user_info}")
+        # 4. Execução do Agente pelo Runner do SDK
+        # ATENÇÃO: Sem blocos que devolvem respostas falsas/mockadas pré-fabricadas.
+        run_result = await Runner.run(
+            agent,
+            input=user_prompt,
+            session=session
+        )
 
-        kb_info = query_troubleshooting_kb(user_prompt)
-        tools_used.append("query_troubleshooting_kb")
-        tools_context.append(f"[Tool: query_troubleshooting_kb] => {kb_info}")
+        final_output: HelpdeskResponse = run_result.final_output
 
-        # 3. Montagem do Prompt
-        augmented_system = f"{SYSTEM_INSTRUCTION}\n\n{rag_context}"
-        if tools_context:
-            augmented_system += "\n\n--- DADOS RETORNADOS PELAS FERRAMENTAS PYTHON ---\n" + "\n".join(tools_context)
+        # Garante que tools invocadas pelo Agent sejam mapeadas no modelo de saída
+        if hasattr(run_result, "generated_items"):
+            for item in run_result.generated_items:
+                tool_name = getattr(item, "name", None) or getattr(item, "tool_name", None)
+                if tool_name and tool_name not in final_output.tools_invoked:
+                    final_output.tools_invoked.append(tool_name)
 
-        messages_payload = [{"role": "system", "content": augmented_system}]
-        for msg in history_messages[:-1]:
-            messages_payload.append({"role": msg["role"], "content": msg["content"]})
-        messages_payload.append({"role": "user", "content": user_prompt})
+        # 5. Gravação em Log Real da Execução
+        self._record_execution_log(
+            session_id=session_id,
+            user_prompt=user_prompt,
+            final_output=final_output,
+            start_time=start_time
+        )
 
-        # 4. Chamada a LLM
-        try:
-            response = await self.client.chat.completions.create(
-                model="ag/claude-sonnet-4-6",
-                messages=messages_payload,
-                temperature=0.1,
-                response_format={"type": "json_object"}
-            )
-            raw_content = response.choices[0].message.content
-        except Exception:
-            # Contingencia deterministica caso o proxy local esteja temporariamente offline
-            is_locked = "maria.souza" in user_prompt or "bloqueada" in user_prompt or "403" in user_prompt
-            requires_esc = True if (is_locked or "hardware" in prompt_lower or "urgente" in prompt_lower) else False
-            category = "Acessos/Senhas" if ("403" in prompt_lower or "senha" in prompt_lower) else ("Redes/VPN" if "vpn" in prompt_lower else "Software")
-            severity = "Alta" if ("urgente" in prompt_lower or "17h" in prompt_lower or is_locked) else "Media"
-
-            raw_content = json.dumps({
-                "ticket_summary": "Triagem automatizada de incidente de suporte corporativo",
-                "category": category,
-                "severity": severity,
-                "recommended_action": "1. Verificar status de permissao e bloqueio no Active Directory. 2. Seguir orientacoes da base KB-101. 3. Caso necessario, acionar suporte N2.",
-                "requires_human_escalation": requires_esc,
-                "reasoning_steps": [
-                    "Identificado sintoma e urgencia reportados pelo colaborador.",
-                    f"Ferramentas executadas: {', '.join(tools_used)}.",
-                    "Artigos RAG relevantes recuperados e cruzados com a monitoria.",
-                    "Sintese diagnostica realizada com indicacao de acao e nivel de suporte."
-                ],
-                "tools_invoked": list(set(tools_used)),
-                "confidence_score": 0.98
-            }, ensure_ascii=False)
-
-        cleaned_json = self._clean_json_string(raw_content)
-        final_output = HelpdeskResponse.model_validate_json(cleaned_json)
-        if not final_output.tools_invoked:
-            final_output.tools_invoked = list(set(tools_used))
-
-        session.add_message("assistant", final_output.model_dump_json())
         return final_output
 
-    def _clean_json_string(self, content: str) -> str:
-        content = content.strip()
-        match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", content)
-        if match:
-            return match.group(1).strip()
-        return content
+    def _record_execution_log(
+        self,
+        session_id: str,
+        user_prompt: str,
+        final_output: HelpdeskResponse,
+        start_time: datetime
+    ):
+        """Registra a saída real da execução em arquivo de log persistente."""
+        completed_time = datetime.now(timezone.utc)
+        log_entry = {
+            "timestamp": completed_time.isoformat(),
+            "session_id": session_id,
+            "duration_seconds": round((completed_time - start_time).total_seconds(), 3),
+            "user_prompt": user_prompt,
+            "output": final_output.model_dump(),
+            "agent_model": self.model_name
+        }
+
+        try:
+            entries = []
+            if os.path.exists(self.log_path):
+                with open(self.log_path, "r", encoding="utf-8") as f:
+                    try:
+                        entries = json.load(f)
+                    except json.JSONDecodeError:
+                        entries = []
+            entries.append(log_entry)
+            with open(self.log_path, "w", encoding="utf-8") as f:
+                json.dump(entries, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            logger.warning(f"Falha ao registrar execution_log: {e}")
