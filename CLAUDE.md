@@ -47,7 +47,8 @@ Este repositório contém o **Agente Inteligente de Triagem de Suporte de TI Ní
   - `prompts_chained_doc.md`: Documentação das 4 etapas de decomposição.
 - `evaluation/`: Benchmark automatizado A/B e registro do ciclo Prompt-Response-Reflect-Revise.
 - `spec/`: Especificação técnica original do TP1 e atualizada do TP2.
-- `RELATORIO_TECNICO.md`: Relatório técnico completo dos entregáveis (slides 52 a 60).
+- `relatorios/`: Relatórios técnicos de cada TP (`RELATORIO_TECNICO*.md`) e notas para o Obsidian.
+- `prints/`: Capturas de tela usadas nos relatórios.
 
 ---
 

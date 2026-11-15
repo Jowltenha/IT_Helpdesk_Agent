@@ -1,0 +1,25 @@
+{
+  "mcpServers": {
+    "obsidian": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "--net=host",
+        "-e",
+        "OBSIDIAN_API_KEY=<SUA_OBSIDIAN_API_KEY>",
+        "-v",
+        "<CAMINHO_DO_SEU_VAULT>:/vault",
+        "mcp/obsidian"
+      ]
+    },
+    "n8n-mcp": {
+      "type": "http",
+      "url": "http://localhost:5678/mcp-server/http",
+      "headers": {
+        "Authorization": "Bearer <SEU_TOKEN_MCP_DO_N8N>"
+      }
+    }
+  }
+}

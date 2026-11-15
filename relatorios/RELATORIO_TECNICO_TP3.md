@@ -32,7 +32,7 @@ Para o desenvolvimento do TP3, foi adotada a integração do **Antigravity com C
 4. **Verificação da Sessão do Claude Code:** Execução do agente no terminal com leitura do contexto checked-in e suporte a ferramentas de inspeção e edição.
 
 > 📷 **Captura de Tela 1 - Ambiente Antigravity e Terminal Integrado:**  
-> ![Captura1](Print_1.png)
+> ![Captura1](../prints/Print_1.png)
 
 ---
 
@@ -110,7 +110,7 @@ Ambos os agentes foram transformados em serviços HTTP independentes com arquite
   ```
 
 > 📷 **Captura de Tela 2 - Execução e Teste dos Endpoints do Agente 1:**  
-> ![Captura2](Print_2.png)
+> ![Captura2](../prints/Print_2.png)
 
 ---
 
@@ -191,7 +191,7 @@ Ambos os agentes foram transformados em serviços HTTP independentes com arquite
   ```
 
 > 📷 **Captura de Tela 3 - Execução e Teste dos Endpoints do Agente 2:**  
-> ![Captura3](Print_3.png)
+> ![Captura3](../prints/Print_3.png)
 
 ---
 
@@ -263,7 +263,7 @@ O workflow n8n desenvolvido e validado realiza o seguinte pipeline determinísti
 6. **Node "Format Agent 1 Output":** Formata a classificação, categoria, severidade e recomendação de suporte.
 
 > 📷 **Captura de Tela 4 - Workflow n8n em Execução:**  
-> ![Captura4](Print_4.png)
+> ![Captura4](../prints/Print_4.png)
 
 ### 5.2 Contrato de Integração e Orquestração Desacoplada no TP4
 Conforme detalhado em `integration/api_contract.md`:

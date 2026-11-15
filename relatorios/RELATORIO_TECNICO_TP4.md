@@ -132,8 +132,8 @@ Encapsula lógica corporativa isolada e reutilizável:
 
 | Agente | Arquivo da Skill | Nome da Skill | Finalidade Técnica |
 | :---: | :--- | :--- | :--- |
-| **Agente 1** | [`agent1/SKILL.md`](agent1/SKILL.md) | `active-directory-diagnostics` | Procedimento Operacional Padrão (SOP) para diagnóstico de bloqueios de credenciais, erros de permissão 403 e validação de grupos no Active Directory. |
-| **Agente 2** | [`agent2/SKILL.md`](agent2/SKILL.md) | `sla-incident-dispatch` | Protocolo e matriz corporativa para cálculo de metas de SLA em minutos (30, 120, 480, 1440) e despacho formal ITSM. |
+| **Agente 1** | [`agent1/SKILL.md`](../agent1/SKILL.md) | `active-directory-diagnostics` | Procedimento Operacional Padrão (SOP) para diagnóstico de bloqueios de credenciais, erros de permissão 403 e validação de grupos no Active Directory. |
+| **Agente 2** | [`agent2/SKILL.md`](../agent2/SKILL.md) | `sla-incident-dispatch` | Protocolo e matriz corporativa para cálculo de metas de SLA em minutos (30, 120, 480, 1440) e despacho formal ITSM. |
 
 Ambos os arquivos contêm frontmatter YAML válido com `name`, `description`, `version`, `author`, `tags` e `parameters` tipados.
 

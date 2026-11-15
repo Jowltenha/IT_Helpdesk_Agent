@@ -5,10 +5,40 @@ build/
 dist/
 wheels/
 *.egg-info
-agent_sessions.db
-.db 
 .python-version
 
 # Virtual environments
 .venv
+
+# Segredos e variáveis de ambiente (manter só o modelo .env.example)
 .env
+.env.*
+!.env.example
+
+# Configurações locais de MCP (contêm API keys e tokens do Obsidian / n8n)
+.mcp.json
+mcp_config.json
+
+# Configurações locais do Claude Code
+.claude/settings.local.json
+
+# Bancos de sessão SQLite gerados em tempo de execução
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Logs de auditoria gerados pelos hooks e pelos testes
+*.log
+
+# Scripts pessoais com caminhos da máquina local (vault do Obsidian)
+export_to_obsidian.sh
+
+# Arquivos criados por engano com caminho do Windows no nome (ex.: "C:\Users\...")
+C:*
+
+# Lixo do sistema operacional / editores
+.DS_Store
+Thumbs.db
+desktop.ini
+*:Zone.Identifier

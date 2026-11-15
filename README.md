@@ -100,8 +100,10 @@ IT_Helpdesk_Agent/
 │
 ├── diagrama_arquitetura_9_componentes.svg  # Imagem vetorial oficial da arquitetura (Slide 8)
 ├── visualizar_diagrama.html                # Visualizador web interativo do diagrama
-├── RELATORIO_TECNICO_TP4.md                # Relatório Técnico Completo de Entrega do TP4
-├── RELATORIO_TECNICO_TP4_OBSIDIAN.md       # Relatório formatado com tags e links para Obsidian
+├── relatorios/                             # Relatórios técnicos (TP1/TP2, TP3, TP4) e notas para Obsidian
+│   ├── RELATORIO_TECNICO_TP4.md            # Relatório Técnico Completo de Entrega do TP4
+│   └── RELATORIO_TECNICO_TP4_OBSIDIAN.md   # Relatório formatado com tags e links para Obsidian
+├── prints/                                 # Capturas de tela usadas nos relatórios
 └── README.md                               # Este arquivo
 ```
 
