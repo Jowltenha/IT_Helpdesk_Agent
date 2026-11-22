@@ -6,7 +6,7 @@
 **Disciplina:** Engenharia de Prompts e Agentes de IA · **Código:** [CÓDIGO DA DISCIPLINA]
 **Projeto:** Sistema de Agentes Inteligentes de Suporte de TI Corporativo (N1 / N2)
 **Repositório:** https://github.com/Jowltenha/IT_Helpdesk_Agent
-**Vídeo:** [LINK DO VÍDEO]
+**Vídeo:** https://youtu.be/un4vYjEExnM
 **Data:** 22 de novembro de 2026
 
 ---
