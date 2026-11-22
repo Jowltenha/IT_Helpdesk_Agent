@@ -156,11 +156,20 @@ def _parse_ts(value: str):
         return None
 
 
-def ticket_audit_trail(ticket_id: str, created_at: str) -> str:
+def ticket_audit_trail(ticket_id: str, created_at: str, completed_at: str = "") -> str:
     """Mostra o que os hooks registraram durante o processamento real deste chamado."""
+    # O log do PreToolUse não guarda o ticket_id, então os eventos são associados ao
+    # chamado pela janela de tempo [created_at, completed_at] do processamento.
     start = _parse_ts(created_at or "")
-    pre = [e for e in _read_jsonl(PRE_TOOL_LOG)
-           if start and (_parse_ts(e.get("timestamp", "")) or start) >= start]
+    end = _parse_ts(completed_at or "")
+
+    def in_window(entry: dict) -> bool:
+        ts = _parse_ts(entry.get("timestamp", ""))
+        if not start or not ts:
+            return False
+        return ts >= start and (end is None or ts <= end)
+
+    pre = [e for e in _read_jsonl(PRE_TOOL_LOG) if in_window(e)]
     post = [e for e in _read_jsonl(POST_TOOL_LOG)
             if ticket_id in json.dumps(e.get("arguments", {}), ensure_ascii=False)]
 
@@ -185,8 +194,8 @@ def ticket_audit_trail(ticket_id: str, created_at: str) -> str:
     )
 
 
-def ticket_actions(ticket_id: str, created_at: str):
-    payload = {"ticket_id": ticket_id, "created_at": created_at}
+def ticket_actions(ticket_id: str, created_at: str, completed_at: str = ""):
+    payload = {"ticket_id": ticket_id, "created_at": created_at, "completed_at": completed_at}
     return [
         cl.Action(name="ticket_status", label="Consultar status no n8n", icon="search", payload=payload),
         cl.Action(name="ticket_audit", label="Ver trilha de auditoria dos hooks", icon="shield-check", payload=payload),
@@ -266,7 +275,10 @@ if HAS_CHAINLIT:
     @cl.action_callback("ticket_audit")
     async def on_ticket_audit(action: cl.Action):
         content = await asyncio.to_thread(
-            ticket_audit_trail, action.payload["ticket_id"], action.payload.get("created_at", "")
+            ticket_audit_trail,
+            action.payload["ticket_id"],
+            action.payload.get("created_at", ""),
+            action.payload.get("completed_at", ""),
         )
         await cl.Message(content=content).send()
 
@@ -338,7 +350,9 @@ if HAS_CHAINLIT:
 | **Remediação:** | {rem_line} |
 | **SLA:** | `{sla.get('sla_target_minutes', '-')} min` — {sla.get('assigned_team', '-')} (`{sla.get('sla_badge', '-')}`) |
 """
-                followup_actions = ticket_actions(ticket_id, final.get("created_at", ""))
+                followup_actions = ticket_actions(
+                    ticket_id, final.get("created_at", ""), final.get("completed_at", "")
+                )
             except Exception:
                 # 2. Fallback transparente para a API REST direta do Agente 1 (caso o n8n não esteja rodando localmente)
                 source = "Agente 1 API (Direto com Polling)"

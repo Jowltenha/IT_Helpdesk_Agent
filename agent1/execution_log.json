@@ -154,5 +154,57 @@
       "confidence_score": 0.97
     },
     "agent_model": "ag/claude-sonnet-4-6"
+  },
+  {
+    "timestamp": "2026-11-22T16:43:38.172285+00:00",
+    "session_id": "user_session_ea451eda",
+    "duration_seconds": 24.939,
+    "user_prompt": "Não consigo acessar a folha de pagameto, erro 403. Minha conta esta bloqueada. E-mail maria.souza@empresa.com",
+    "output": {
+      "ticket_summary": "Conta bloqueada no AD causa erro 403 na folha",
+      "category": "Acessos/Senhas",
+      "severity": "Alta",
+      "recommended_action": "1. CAUSA CONFIRMADA: A conta de maria.souza@empresa.com está BLOQUEADA no Active Directory (account_locked: true). O sistema de Folha de Pagamento está operacional — o problema é exclusivamente na conta da usuária. 2. AÇÃO IMEDIATA: Escalar para analista N2 para desbloqueio manual da conta no AD. O desbloqueio NÃO pode ser feito via autoatendimento quando a conta está totalmente bloqueada. 3. PÓS-DESBLOQUEIO: A usuária deve acessar pass.empresa.com para redefinir a senha (MFA obrigatório se estiver fora da rede). 4. VALIDAÇÃO FINAL: Após desbloqueio, limpar cache e cookies do navegador antes de tentar novo acesso ao sistema de Folha. OBS: A usuária possui os grupos corretos (Folha_Pagamento_Admin, RH_Gestao) — sem necessidade de revisão de permissões.",
+      "requires_human_escalation": true,
+      "reasoning_steps": [
+        "ETAPA 1 — Identificação do Sintoma e Urgência: Colaboradora Maria Souza (Coordenadora de RH) relata erro 403 ao acessar o sistema de Folha de Pagamento e suspeita de bloqueio de conta. A criticidade é ALTA pois trata-se de sistema financeiro/RH com impacto operacional direto.",
+        "ETAPA 2 — Consulta a Ferramentas Externas: Foram invocadas simultaneamente check_system_status (serviço 'folha') e lookup_user_account (maria.souza@empresa.com). O sistema retornou status 'Operational' (descartando instabilidade de infraestrutura) e account_locked: true (confirmando o bloqueio de conta no AD como causa raiz).",
+        "ETAPA 3 — Análise das Evidências e Contexto RAG: Cruzando os dados: (a) sistema operacional descarta causa de infraestrutura; (b) conta bloqueada é a causa raiz do erro 403; (c) a usuária possui os grupos AD corretos (Folha_Pagamento_Admin), então não há problema de permissão; (d) KB-101 e KB-40301 indicam que contas bloqueadas exigem desbloqueio por analista N2.",
+        "ETAPA 4 — Decisão e Recomendação: Escalonamento N2 é obrigatório para desbloqueio manual no AD. Autoatendimento via portal de senha não é suficiente para contas totalmente bloqueadas. Após desbloqueio, limpeza de cache e redefinição de senha via MFA resolvem o caso sem necessidade de N3."
+      ],
+      "tools_invoked": [
+        "check_system_status",
+        "lookup_user_account",
+        "query_troubleshooting_kb"
+      ],
+      "confidence_score": 0.97
+    },
+    "agent_model": "ag/claude-sonnet-4-6"
+  },
+  {
+    "timestamp": "2026-11-22T16:48:56.709317+00:00",
+    "session_id": "user_session_7297f239",
+    "duration_seconds": 31.459,
+    "user_prompt": "Não consigo acessar a folha de pagamento, erro 403. Eu acho que minha conta esta bloquea da. E-mail maria.souza@empresa.com.",
+    "output": {
+      "ticket_summary": "Conta bloqueada no AD causa erro 403 na folha",
+      "category": "Acessos/Senhas",
+      "severity": "Alta",
+      "recommended_action": "A conta de maria.souza@empresa.com está BLOQUEADA no Active Directory (confirmado via AD lookup). O sistema de Folha de Pagamento está operacional, logo a causa raiz é exclusivamente o bloqueio de conta. Ações imediatas: 1. Escalar para analista N2 para desbloqueio manual da conta no AD — desbloqueios exigem confirmação de identidade por telefone (KB-104). 2. Após desbloqueio, solicitar que a usuária acesse pass.empresa.com para redefinição de senha via MFA caso esteja fora da rede. 3. Orientar limpeza de cache e cookies no navegador antes de novo acesso (KB-101 / KB-40301). 4. Verificar se o grupo 'Folha_Pagamento_Admin' permanece atribuído após o desbloqueio (já confirmado como ativo).",
+      "requires_human_escalation": true,
+      "reasoning_steps": [
+        "ETAPA 1 — Identificação do Sintoma e Urgência: Colaboradora Maria Souza (Coordenadora de RH) relata impossibilidade de acessar o sistema de Folha de Pagamento com erro HTTP 403. Suspeita de bloqueio de conta. Criticidade alta, pois envolve sistema de RH com impacto direto em processos de folha.",
+        "ETAPA 2 — Consulta a Ferramentas Externas: (a) check_system_status('folha') → Sistema de Folha de Pagamento 100% operacional, sem instabilidades registradas. Descarta falha de infraestrutura como causa. (b) lookup_user_account('maria.souza@empresa.com') → account_locked: TRUE. Usuária possui os grupos corretos (Folha_Pagamento_Admin, RH_Gestao, VPN_Users), confirmando que o problema NÃO é de permissão de grupo, mas de bloqueio de conta.",
+        "ETAPA 3 — Análise das Evidências e Contexto RAG: KB-101 instrui: conta bloqueada por tentativas inválidas exige acionamento de N2 para redefinição. KB-104 reforça: desbloqueios manuais requerem confirmação de identidade por telefone. KB-40301 (recuperado dinamicamente) confirma o fluxo: verificar grupo no AD (OK) → se bloqueada, acionar N2 → limpar cache. Todos os dados convergem para desbloqueio manual como única solução.",
+        "ETAPA 4 — Decisão e Recomendação: Causa raiz confirmada: bloqueio de conta no AD. Sistema operacional e permissões de grupo corretas. Resolução não pode ser feita por autoatendimento pois requer intervenção direta de analista N2 no Active Directory com validação de identidade. Escalonamento humano é OBRIGATÓRIO (requires_human_escalation = true). Confiança analítica: 0.97."
+      ],
+      "tools_invoked": [
+        "check_system_status",
+        "lookup_user_account",
+        "query_troubleshooting_kb"
+      ],
+      "confidence_score": 0.97
+    },
+    "agent_model": "ag/claude-sonnet-4-6"
   }
 ]

@@ -255,12 +255,6 @@ curl "http://localhost:5678/webhook/helpdesk-status?ticket_id=TCK-..."
 
 O roteiro detalhado (o que mostrar e o que falar em cada minuto) é entregue à parte, junto com este relatório.
 
-**Link do vídeo:** _(inserir aqui após a gravação)_
+**Link do vídeo:** _([Tp4 - IT HELPDESK](https://youtu.be/Ns615Y2H_-U))_
 
 ---
-
-## 9. O que depende de ação manual
-
-1. **Credencial do LLM no n8n:** criar uma credencial *OpenAI API* chamada "9Router Proxy (OpenAI compativel)" com a chave do 9Router e o Base URL `http://local:20128/v1`, e vinculá-la ao nó *Modelo LLM (Proxy 9Router)*. Sem ela o n8n não deixa **publicar** o workflow principal.
-2. **Chave do proxy no `.env`:** a `OPENAI_API_KEY` atual foi recusada pelo 9Router (`401 Invalid API key`). É preciso gerar uma chave nova no painel do 9Router e atualizar o `.env`. Sem isso o Agente 1 não consegue chamar o LLM.
-3. **Gravar e enviar o vídeo.**
