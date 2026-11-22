@@ -1,212 +1,266 @@
-# Relatório Técnico - TP4: Orquestração Multi-Agente no n8n, Governança Formal, Skills e Subagentes
+> 🔗 **Repositório GitHub:** https://github.com/Jowltenha/IT_Helpdesk_Agent
 
-**Disciplina:** Engenharia de Prompts e Agentes de IA  
-**Aluno:** João Pedro Barboza  
-**Projeto:** Sistema de Agentes Inteligentes de Suporte de TI Corporativo (N1 / N2)  
-**Data:** Novembro de 2026  
-**Status:** Concluído e Validado  
+# Relatório Técnico - TP4: Orquestração Multi-Agente Assíncrona no n8n, Governança, Skills e Subagentes
 
----
-
-## 📌 1. Visão Geral e Objetivos do TP4
-
-O **Trabalho Prático 4 (TP4)** consolida a arquitetura de agentes de IA desacoplados em um pipeline corporativo governado, seguro e orquestrado de ponta a ponta. 
-
-Enquanto os trabalhos anteriores estabeleceram os contratos dos microserviços e o protótipo inicial, o TP4 implementa:
-1. **Orquestração Real e Completa no n8n:** Submissão assíncrona, loop de polling determinístico, roteamento condicional inteligente, **AI Agent Node com LLM e Tool** e **Sub-workflow reutilizável**.
-2. **Especificação Formal por Agente:** Configuração de regras estritas de permissão (`allow`, `deny`, `ask`) via `settings.json` e implementação de **Hooks automatizados e verificáveis** (`PreToolUse` e `PostToolUse`).
-3. **Decomposição em Skills e Subagentes:** Extração de capacidades em arquivos `SKILL.md` padronizados e criação de **Subagentes especializados com isolamento de contexto formalmente justificado**.
-4. **Atualização dos Contratos (`CLAUDE.md` e `AGENTS.md`):** Manutenção dos arquivos como fonte única da verdade técnica e mapeamento rigoroso entre requisitos e implementação.
+**Disciplina:** Engenharia de Prompts e Agentes de IA
+**Aluno:** João Pedro Barboza
+**Projeto:** Sistema de Agentes Inteligentes de Suporte de TI Corporativo (N1 / N2)
+**Repositório:** https://github.com/Jowltenha/IT_Helpdesk_Agent
+**Data:** Novembro de 2026 (versão revisada após a correção do professor)
 
 ---
 
-## 🌐 2. Orquestração dos Agentes no n8n com Ciclo Assíncrono Completo
+## 0. Correções feitas após o feedback do professor
 
-O **n8n** atua como o **único orquestrador** do sistema. O Agente 1 e o Agente 2 são microserviços autônomos que operam em portas dedicadas (8001 e 8002) sem acoplamento direto de código ou rede entre si.
+O feedback da primeira entrega foi:
+
+> *"Faltou a parte assíncrona do N8N, de não esperar os agentes terminarem. Além disso, faltaram o vídeo e o link do GitHub."*
+>
+> Pendências: vídeo de até 5 min; link do GitHub; **laço de polling nos dois agentes, voltando ao Wait enquanto o status for `pending`, e Merge recebendo as respostas dos dois agentes.**
+
+| Pendência apontada | O que estava errado | O que foi corrigido |
+| :--- | :--- | :--- |
+| **n8n assíncrono (não esperar os agentes)** | O Webhook usava `Respond to Webhook` só no **final** do fluxo, então o chatbot ficava esperando os dois agentes terminarem. | Agora o n8n responde **`202 Accepted` + `ticket_id` imediatamente**, logo após registrar o chamado. Os agentes rodam **em segundo plano** e o progresso fica salvo na Data Table `helpdesk_tickets`. Um segundo webhook (`GET /webhook/helpdesk-status?ticket_id=...`) permite consultar o andamento. |
+| **Laço de polling nos dois agentes** | Havia só **um** Wait de 2 s e **uma** consulta ao `/status`, sem laço. | Cada agente tem o ciclo `Wait 3s → GET /status → Switch`. A saída **`pendente_volta_ao_wait`** volta para o Wait **enquanto `status == "pending"`** (até 40 tentativas ≈ 2 min). `done` segue o fluxo. `error` ou timeout vai para o tratamento de falha. |
+| **Merge recebendo as respostas dos dois agentes** | O Merge tinha só **uma** entrada conectada. | O nó **`Merge: Respostas dos 2 Agentes`** recebe na **entrada 1** a resposta do Agente 1 e na **entrada 2** a resposta do Agente 2 (ou o aviso "Agente 2 não necessário", quando o Supervisor decide que não há remediação). |
+| **Link do GitHub** | Não constava na entrega. | Adicionado no topo deste e de **todos** os relatórios, e registrado como regra no `CLAUDE.md` do projeto. |
+| **Vídeo** | Não foi enviado. | Roteiro de 5 minutos pronto (seção 8). A gravação precisa ser feita pelo aluno. |
+
+**Outras correções encontradas durante a revisão:**
+- **URLs dos agentes:** o n8n roda em Docker, onde `localhost` aponta para o próprio container. As URLs passaram de `http://localhost:800X` para `http://local:800X` (host da máquina).
+- **ID real do sub-workflow:** o nó Execute Workflow apontava para um ID fictício (`subworkflow-sla-calculator`). Agora usa o ID real (`BPDzhhNbkyZ4VDoI`).
+- **Modelo do AI Agent:** usava `gpt-4o-mini` sem credencial. Agora aponta para o mesmo proxy dos agentes (`http://local:20128/v1`, modelo `ag/claude-sonnet-4-6`).
+- **Bug no Agente 1 (`agent1/runner.py`):** o OpenAI Agents SDK lia a barra em `ag/claude-sonnet-4-6` como prefixo de provedor e falhava com `Unknown prefix: ag`. O modelo agora é envolvido em `OpenAIChatCompletionsModel`, e o cliente do proxy é usado diretamente.
+- **Saída estruturada do Agente 1:** o modelo do proxy às vezes devolve o JSON cercado de texto e de um bloco ` ```json `, e o SDK falhava com `Invalid JSON when parsing model output`. Foi criado o `MarkdownTolerantOutputSchema`, que extrai só o objeto JSON antes da validação. A validação Pydantic do `HelpdeskResponse` continua estrita.
+- **Chatbot (`chatbot/app.py`):** agora aceita o `202`, mostra "chamado recebido" na hora e consulta o status a cada 3 s até o resultado ficar pronto. Também foi corrigido o uso da API do Chainlit (`msg.content = ...; await msg.update()`). Botões no chat substituem os comandos de terminal:
+  - **Verificar serviços:** agentes, workflow publicado e proxy do LLM.
+  - **Testar hooks de segurança:** casos de bloqueio do PreToolUse e hash do PostToolUse.
+  - **Consultar status no n8n:** consulta o webhook de status do chamado.
+  - **Ver trilha de auditoria dos hooks:** eventos reais gravados pelos hooks para aquele chamado.
+- **SLA:** o roteiro antigo citava "SLA de 15 minutos", o que não corresponde à matriz real. Para severidade **Alta** o SLA é **120 minutos**.
+
+---
+
+## 1. Visão geral do TP4 (em linguagem simples)
+
+O sistema recebe um chamado de TI escrito pelo colaborador num chat e resolve o que for possível automaticamente:
+
+1. **Agente 1 – Triagem N1** (Python, porta 8001). Lê o chamado, consulta ferramentas (status de sistemas, Active Directory, base de conhecimento com RAG) e devolve um laudo: categoria, severidade, ação recomendada e se precisa de humano.
+2. **Agente 2 – Remediação N2** (Python, porta 8002). Recebe o laudo e executa a correção: desbloqueia a conta, cria rota de VPN de contingência ou abre incidente com SLA.
+3. **n8n – Orquestrador.** É o único componente que conversa com os dois agentes. Os agentes **não se conhecem**.
+4. **Agente Supervisor dentro do n8n** (AI Agent node). Lê o laudo do Agente 1, consulta a ferramenta `query_support_policy` e decide se o Agente 2 deve agir.
+5. **Sub-workflow de SLA.** Fluxo n8n separado e reutilizável que calcula prazo, equipe e urgência.
+6. **Chatbot Chainlit.** É a porta de entrada (gatilho único do pipeline).
+
+Além da orquestração, o TP4 pedia **governança formal por agente** (`settings.json` com `allow`/`deny`/`ask`), **hooks verificáveis** (`PreToolUse` / `PostToolUse`), **skills** (`SKILL.md`) e **subagentes com isolamento de contexto**.
+
+---
+
+## 2. Orquestração assíncrona no n8n
+
+### 2.1 Por que assíncrono?
+
+Uma triagem com LLM e ferramentas leva de 10 s a 1 min. Se o webhook esperasse tudo terminar, o chatbot ficaria travado e a requisição HTTP poderia estourar o tempo limite. A solução tem três partes:
+
+- **n8n ↔ chatbot:** o n8n responde **na hora** (`202` + `ticket_id`) e o chatbot consulta o status depois.
+- **n8n ↔ agentes:** os agentes também são assíncronos (`POST /run` devolve `202` + `task_id`), e o n8n faz **polling** em `GET /status/{task_id}` até ficar `done`.
+- **Estado compartilhado:** a Data Table `helpdesk_tickets` do n8n guarda `status` (`processing` / `done` / `error`), a etapa (`received` → `triage_done` → `completed`) e o resultado final em JSON.
+
+### 2.2 Diagrama do fluxo
 
 ```text
-[Chatbot Chainlit (Webhook)]
-          │ POST /helpdesk-triage-tp4
-          ▼
- [HTTP: POST /run (Agente 1)] ──► Retorna 202 + task_id
-          │
-  [Wait Node (2s)] ◄─────────────┐ (Loop de Polling)
-          │                      │
-[HTTP: GET /status/{task_id}] ───┘ (Até status: "done")
-          │
-[AI Agent Node (Supervisor / LLM + Tool)]
-          │
- [If: Requer Remediação?]
- ├── SIM (Acessos/VPN) ──► [HTTP: POST /run (Agente 2)] ──► [Wait 2s] ──► [GET /status (Agente 2)]
- │                                                                            │
- └── NÃO (Hardware/Dúvida) ───────────────────────────────────────────────────┼──┐
-                                                                              │  │
-[Execute Sub-workflow (SLA Calculator & Sanitizer)] ◄─────────────────────────┘  │
-          │                                                                      │
-          └─────────────────────► [Merge Node] ◄─────────────────────────────────┘
-                                       │
-                         [Respond to Webhook (Chatbot)]
+ Chatbot ──POST /webhook/helpdesk-triage-tp4──► [Webhook]
+                                                   │
+                                        [Normalizar Chamado]  (gera ticket_id)
+                                                   │
+                                   [Registrar Chamado (processing)]  → Data Table
+                                                   │
+ Chatbot ◄──── 202 {ticket_id, status_endpoint} ── [Responder 202 Imediato]   ◄── o chatbot JÁ foi liberado aqui
+                                                   │
+                         ───────────── daqui pra baixo roda em SEGUNDO PLANO ─────────────
+                                                   │
+                                  [Disparar Agente 1 (POST :8001/run)] → 202 + task_id
+                                                   │
+                         ┌──────────► [Aguardar Agente 1 (3s)]
+                         │                         │
+                         │            [Consultar Status Agente 1 (GET /status)]
+                         │                         │
+                         │               [Switch: Agente 1 Terminou?]
+                         └── pendente ─────────────┤
+                                                   ├── erro/timeout ──► [Preparar Erro] → [Salvar Falha (error)]
+                                                done
+                                                   │
+                               [Atualizar Etapa: triage_done] → Data Table
+                                     │                                     │
+                     [Agente Supervisor (AI Agent)]              [Resposta do Agente 1] ───────┐
+                      LLM + Tool query_support_policy                                          │
+                                     │                                                         │
+                       [If: Precisa de Remediação?]                                            │
+                  sim ───────────────┴────────────── não                                       │
+                   │                                  │                                        │
+ [Disparar Agente 2 (POST :8002/run)]       [Agente 2 Não Necessário] ───────┐                 │
+                   │                                                         │                 │
+        ┌──► [Aguardar Agente 2 (3s)]                                        │                 │
+        │          │                                                         │                 │
+        │  [Consultar Status Agente 2]                                       │                 │
+        │          │                                                         ▼                 ▼
+        │  [Switch: Agente 2 Terminou?]                               ┌──────────────────────────────┐
+        └─ pendente┤                                                  │ Merge: Respostas dos 2       │
+                   ├─ erro/timeout ──► [Salvar Falha]                 │ Agentes (entrada 1 = Ag. 1,  │
+                 done ──► [Resposta do Agente 2] ───────────────────► │ entrada 2 = Ag. 2)           │
+                                                                      └──────────────┬───────────────┘
+                                                                                     │
+                                                          [Preparar Dados para SLA] → [Executar Sub-workflow de SLA]
+                                                                                     │
+                                                          [Consolidar Resultado Final] → [Salvar Resultado (done)]
+
+ Chatbot ──GET /webhook/helpdesk-status?ticket_id=...──► [Webhook Status] → [Buscar na Data Table] → [Responder Status]
 ```
 
-### 2.1 Workflow Principal (`workflows/tp4_main_orchestration_workflow.json`)
-O workflow principal implementa a esteira integrada:
-1. **Gatilho de Entrada (Nó 1):** `Webhook Trigger` recebe o relato do usuário (`user_prompt`) e o `session_id` originados do Chatbot Corporativo (Chainlit).
-2. **Invocação Assíncrona Agente 1 (Nó 2):** Dispara `POST http://localhost:8001/run` enviando `RunRequest`. A API do Agente 1 devolve imediatamente código `202 Accepted` com `task_id`.
-3. **Pausa Não-Bloqueante (Nó 3):** Nó `Wait` pausa a execução por 2 segundos para dar tempo à inferência generativa, busca RAG e chamadas de ferramentas.
-4. **Polling de Estado Agente 1 (Nó 4):** Consulta `GET http://localhost:8001/status/{task_id}` até que o estado transite para `done`, eliminando timeouts de gateway.
-5. **AI Agent Node com LLM e Tool (Nó 5):** Nó de Inteligência Artificial nativo do n8n (`@n8n/n8n-nodes-langchain.agent`) conectado a:
-   - **Language Model:** `OpenAI Chat Model` (`gpt-4o-mini`).
-   - **Agent Tool:** `Custom Tool - IT Policy Checker` (consulta regras corporativas de segurança).
-   - *Responsabilidade:* Analisa criticamente o diagnóstico do Agente 1 e arbitra de forma autônoma se a ação de remediação é segura para execução automática.
-6. **Roteamento Condicional (Nó 6):** Nó `If` direciona o fluxo:
-   - Incidentes de conta bloqueada no Active Directory ou instabilidade de gateway VPN acionam o ramo do Agente 2.
-   - Incidentes de hardware presencial ou consultas informativas seguem direto para cálculo de SLA sem alterar sistemas.
-7. **Invocação Assíncrona Agente 2 (Nós 7 a 9):** Repete o ciclo assíncrono para o Agente 2 (`POST http://localhost:8002/run` + Wait 2s + polling em `GET /status/{task_id}`).
-8. **Invocação do Sub-workflow (Nó 10):** Nó `Execute Workflow` despacha os dados para o sub-workflow `tp4_subworkflow_sla_calculator`.
-9. **Merge Consolidado (Nó 11):** Nó `Merge` funde a triagem N1, as evidências de remediação N2 e os metadados de governança de SLA.
-10. **Resposta ao Chatbot (Nó 12):** Devolve ao colaborador a resposta rica formatada.
+### 2.3 Nós do workflow principal (`workflows/tp4_main_orchestration_workflow.json`)
 
-### 2.2 Sub-workflow Reutilizável (`workflows/tp4_subworkflow_sla_calculator.json`)
-Encapsula lógica corporativa isolada e reutilizável:
-- **Gatilho Modular:** `Execute Workflow Trigger` permite que o sub-workflow seja invocado pelo workflow principal ou chamado de forma independente em pipelines de auditoria.
-- **Lógica de Cálculo de SLA:** Nó `Code` em JavaScript que mapeia a severidade para a matriz formal de tempo de atendimento:
-  - *Crítica:* 30 minutos | *Alta:* 120 minutos | *Média:* 480 minutos | *Baixa:* 1440 minutos.
-  - Computa a data e hora limite exatas em formato ISO 8601 (`sla_deadline_iso`).
-- **Detecção de Criticidade:** Nó `If` verifica se o SLA é `<= 60 minutos` e aciona a flag de alerta imediato (`PAGERDUTY_ALERT_TRIGGERED`).
+| # | Nó | Tipo n8n | O que faz |
+| :-: | :--- | :--- | :--- |
+| 1 | Webhook Chatbot (Novo Chamado) | Webhook (POST `helpdesk-triage-tp4`) | Recebe `user_prompt` e `session_id` do chatbot. |
+| 2 | Normalizar Chamado | Set | Gera `ticket_id` (`TCK-AAAAMMDD-HHMMSS-<exec>`) e extrai o e-mail do texto. |
+| 3 | Registrar Chamado (processing) | Data Table (insert) | Cria a linha do ticket com `status=processing`. |
+| 4 | **Responder 202 Imediato ao Chatbot** | Respond to Webhook (202) | **Libera o chatbot na hora**, sem esperar os agentes. |
+| 5 | Disparar Agente 1 (POST /run) | HTTP Request | Inicia a triagem e recebe `task_id`. |
+| 6–8 | Aguardar 3s → Consultar Status → **Switch "Agente 1 Terminou?"** | Wait + HTTP + Switch | **Laço de polling:** `pending` volta ao Wait, `done` segue, `error` ou mais de 40 tentativas vai para a falha. |
+| 9 | Atualizar Etapa: Triagem Concluída | Data Table (update) | Marca `stage=triage_done` (o chatbot mostra o progresso). |
+| 10 | **Agente Supervisor (n8n)** | AI Agent + LLM + Tool + Output Parser | Terceiro agente: decide `should_remediate` e `target_action` consultando `query_support_policy`. Regras, nesta ordem: (1) se o laudo exige escalonamento humano, aciona o Agente 2 com `DISPATCH_INCIDENT` para abrir incidente ITSM para o N2; (2) se a política permite remediação automática, aciona com `UNLOCK_ACCOUNT` ou `VPN_FAILOVER`; (3) caso contrário, não aciona. |
+| 11 | Precisa de Remediação (Agente 2)? | If | Roteia para o Agente 2 ou para "não necessário". |
+| 12 | Disparar Agente 2 (POST /run) | HTTP Request | Envia o laudo do Agente 1 e a ação escolhida pelo Supervisor. |
+| 13–15 | Aguardar 3s → Consultar Status → **Switch "Agente 2 Terminou?"** | Wait + HTTP + Switch | **Mesmo laço de polling** para o Agente 2. |
+| 16 | Resposta do Agente 1 / Resposta do Agente 2 / Agente 2 Não Necessário | Set | Padroniza as respostas antes do Merge. |
+| 17 | **Merge: Respostas dos 2 Agentes** | Merge (combine by position, 2 entradas) | Junta a resposta do Agente 1 com a do Agente 2. |
+| 18 | Executar Sub-workflow de SLA | Execute Workflow | Chama o sub-workflow e espera o retorno do SLA. |
+| 19 | Consolidar Resultado Final → Salvar Resultado (done) | Code + Data Table | Monta o JSON final e grava `status=done`. |
+| 20 | Preparar Mensagem de Erro → Salvar Falha (error) | Set + Data Table | Qualquer falha (agente fora do ar, erro ou timeout) vira `status=error` com a mensagem. |
+| 21 | Webhook Consulta de Status → Buscar → Responder | Webhook GET + Data Table + Respond | Endpoint que o chatbot consulta: devolve `processing`, `done` (com resultado) ou `error`. |
+
+### 2.4 Sub-workflow reutilizável (`workflows/tp4_subworkflow_sla_calculator.json`)
+
+- **Gatilho:** `Execute Workflow Trigger`. Pode ser chamado por qualquer outro workflow.
+- **Calcular SLA e Equipe (Code):** aplica a matriz de SLA (Crítica 30 min, Alta 120 min, Média 480 min, Baixa 1440 min), define a equipe responsável (ex.: Acessos/Senhas → *N2 Acessos e Identidade*) e calcula o `sla_deadline_iso`.
+- **If "SLA Crítico (até 60 min)?":** marca `CRITICAL_URGENT` (alerta PagerDuty) ou `NORMAL_FLOW`.
+
+### 2.5 Como foi validado
+
+- **Teste sem agentes ligados:** o webhook respondeu 202. O `POST /run` falhou com `ECONNREFUSED`, a falha foi gravada como `status=error` na Data Table e o webhook de status devolveu esse erro. Isso mostra que o chatbot **não fica travado** mesmo com falha.
+- **Teste do caminho completo com dados simulados (pin data):** o fluxo passou pelo Agente 1 (`done`), pelo Supervisor, pelo Agente 2 (`done`), pelo **Merge com as 2 entradas**, pelo sub-workflow de SLA (Alta → 120 min, *N2 Acessos e Identidade*) e terminou gravando `status=done` com o resultado consolidado.
+- **Teste com os agentes reais:** os agentes subiram e responderam `202` + `task_id`. O polling recebeu o status real, e o bug `Unknown prefix: ag` foi descoberto e corrigido. A execução completa com LLM depende de uma chave válida do proxy 9Router (ver seção 9).
 
 ---
 
-## 🛡️ 3. Especificação Formal de Cada Agente: Permissões e Hooks
+## 3. Especificação formal de cada agente: permissões e hooks
 
 ### 3.1 Agente 1 (Triagem N1)
 
-#### A) Políticas de Permissão (`agent1/settings.json`)
-- **Regras `allow`:** 
-  - Execução de testes de API (`python3 agent1/test_agent1_api.py`, `python3 agent1/hooks/test_hook.py`, `pytest`).
-  - Leitura de arquivos de código e escrita estrita em arquivos de log (`execution_log.json`, `hooks/hook_audit.log`).
-- **Regras `deny`:**
-  - Comandos destrutivos de terminal (`rm -rf *`, `git push --force*`, `drop database`).
-  - Remoção acidental do banco de sessões relacionais (`rm -rf agent1/agent1_sessions.db`).
-  - Chamadas de deleção HTTP (`curl -X DELETE *`).
-- **Regras `ask`:**
-  - Comandos que alterem o banco de dados diretamente via SQL (`sqlite3 agent1/agent1_sessions.db`).
-  - Modificação em arquivos estruturais da API (`models.py`, `app.py`, `runner.py`).
+**Permissões (`agent1/settings.json`):**
+- **allow:** rodar os testes (`test_agent1_api.py`, `hooks/test_hook.py`, `pytest`), ler o código e escrever apenas nos logs (`execution_log.json`, `hook_audit.log`).
+- **deny:** comandos destrutivos (`rm -rf`, `git push --force`, `drop database`), apagar `agent1_sessions.db`, `curl -X DELETE`.
+- **ask:** alterar `models.py`, `app.py` ou `runner.py`, e mexer no banco SQLite via SQL.
 
-#### B) Hook Automatizado e Verificável: `PreToolUse` (`agent1/hooks/pre_tool_validator.py`)
-- **Momento de Execução:** Disparado imediatamente antes de o Agente 1 invocar qualquer ferramenta (`check_system_status`, `lookup_user_account`, `query_troubleshooting_kb`).
-- **Comportamento Automatizado:**
-  1. Sanitiza argumentos removendo caracteres perigosos de injeção (`;`, `|`, `&`, `$`, `\`).
-  2. Valida o formato de e-mail corporativo: exige domínio `@empresa.com`. E-mails externos (`@gmail.com`) ou malformados são bloqueados antes de atingir o Active Directory.
-  3. Valida se o serviço consultado faz parte do catálogo de infraestrutura monitorado.
-  4. Registra cada decisão no arquivo de auditoria `agent1/hooks/hook_audit.log`.
-- **Verificação Automatizada:** Validado através do script `agent1/hooks/test_hook.py` (7 casos de teste cobrindo aprovação, bloqueio e auditoria).
+**Hook `PreToolUse` (`agent1/hooks/pre_tool_validator.py`):** roda **antes** de cada ferramenta do Agente 1 e:
+1. remove caracteres de injeção (`;`, `|`, `&`, `$`, `\`);
+2. só aceita e-mails `@empresa.com` (por exemplo, bloqueia `@gmail.com`);
+3. valida se o serviço consultado existe no catálogo;
+4. registra cada decisão em `agent1/hooks/hook_audit.log`.
 
----
+Como verificar: `PYTHONPATH=. python3 agent1/hooks/test_hook.py`
 
-### 3.2 Agente 2 (Auto-Remediação N2)
+### 3.2 Agente 2 (Remediação N2)
 
-#### A) Políticas de Permissão (`agent2/settings.json`)
-- **Regras `allow`:**
-  - Execução controlada de testes de remediação (`test_agent2_api.py`, `test_hook.py`).
-  - Gravação de trilha de auditoria em `security_audit.log` e `execution_log.json`.
-- **Regras `deny`:**
-  - Exclusão ou alteração de logs de auditoria (`rm execution_log.json`, `rm security_audit.log`).
-  - Comandos de remoção de usuários de sistema (`userdel`).
-- **Regras `ask`:**
-  - Operações de desbloqueio em lote ou despacho de incidentes para nível executivo.
+**Permissões (`agent2/settings.json`):**
+- **allow:** testes e escrita nas trilhas de auditoria.
+- **deny:** apagar ou alterar logs de auditoria, e `userdel`.
+- **ask:** desbloqueios em lote e escalonamento executivo.
 
-#### B) Hook Automatizado e Verificável: `PostToolUse` (`agent2/hooks/post_tool_auditor.py`)
-- **Momento de Execução:** Disparado imediatamente após a execução de ferramentas de remediação (`unlock_user_account`, `configure_vpn_failover_route`, `dispatch_sla_incident`).
-- **Comportamento Automatizado:**
-  1. Captura os parâmetros e o resultado retornado pela ferramenta.
-  2. Gera um hash criptográfico SHA-256 único e imutável baseado na combinação: `ação + argumentos + resultado + timestamp UTC`.
-  3. Injeta no payload retornado o campo `compliance_hash: SEC-XXXX` e a marcação `verified_by_hook: true`.
-  4. Persiste a trilha de segurança em `agent2/hooks/security_audit.log` para conformidade com normas SOX e LGPD.
-- **Verificação Automatizada:** Validado através do script `agent2/hooks/test_hook.py`.
+**Hook `PostToolUse` (`agent2/hooks/post_tool_auditor.py`):** roda **depois** de cada ação de remediação. Ele gera um hash SHA-256 a partir de ação, argumentos, resultado e timestamp, injeta `compliance_hash` e `verified_by_hook: true` no retorno e grava a trilha em `agent2/hooks/security_audit.log` (conformidade SOX/LGPD).
+
+Como verificar: `PYTHONPATH=. python3 agent2/hooks/test_hook.py`
 
 ---
 
-## 🧩 4. Skills Reutilizáveis e Subagentes com Isolamento de Contexto
+## 4. Skills reutilizáveis e subagentes
 
-### 4.1 Skills Reutilizáveis (`SKILL.md`)
+| Agente | Skill | Para que serve |
+| :-: | :--- | :--- |
+| Agente 1 | `agent1/SKILL.md` – `active-directory-diagnostics` | Passo a passo para diagnosticar conta bloqueada, erro 403 e grupos do AD. |
+| Agente 2 | `agent2/SKILL.md` – `sla-incident-dispatch` | Matriz de SLA (30/120/480/1440 min) e protocolo de abertura de incidente ITSM. |
 
-| Agente | Arquivo da Skill | Nome da Skill | Finalidade Técnica |
-| :---: | :--- | :--- | :--- |
-| **Agente 1** | [`agent1/SKILL.md`](../agent1/SKILL.md) | `active-directory-diagnostics` | Procedimento Operacional Padrão (SOP) para diagnóstico de bloqueios de credenciais, erros de permissão 403 e validação de grupos no Active Directory. |
-| **Agente 2** | [`agent2/SKILL.md`](../agent2/SKILL.md) | `sla-incident-dispatch` | Protocolo e matriz corporativa para cálculo de metas de SLA em minutos (30, 120, 480, 1440) e despacho formal ITSM. |
-
-Ambos os arquivos contêm frontmatter YAML válido com `name`, `description`, `version`, `author`, `tags` e `parameters` tipados.
-
----
-
-### 4.2 Subagentes Projetados e Justificativa Formal de Isolamento
-
-#### Subagente 1: `kb-researcher` (`agent1/subagents/kb_researcher.md`)
-- **Contexto:** Subordinado ao Agente 1 (Triagem N1).
-- **Modelo:** `ag/claude-sonnet-4-6`.
-- **Ferramentas Exclusivas:** `query_troubleshooting_kb`, `check_system_status`.
-- **Justificativa Formal de Isolamento de Contexto:**
-  > *Artigos procedurais de Base de Conhecimento (SOPs) possuem dezenas de parágrafos com comandos técnicos, variações de sistemas operacionais e notas de rodapé. Carregar esses documentos na janela de contexto principal do Agente 1 causa poluição e saturação da janela de atenção (Context Window Pollution), distraindo o modelo do relato específico do usuário e elevando desnecessariamente o custo de inferência. O subagente `kb-researcher` atua como um pesquisador isolado: recebe a dúvida técnica, consulta a documentação em escopo fechado e devolve ao agente principal apenas o extrato cirúrgico de 3 a 5 linhas acionáveis.*
-
-#### Subagente 2: `sla-compliance-auditor` (`agent2/subagents/sla_auditor.md`)
-- **Contexto:** Subordinado ao Agente 2 (Auto-Remediação N2).
-- **Modelo:** `ag/claude-sonnet-4-6`.
-- **Ferramentas Exclusivas:** `dispatch_sla_incident`.
-- **Justificativa Formal de Isolamento de Contexto:**
-  > *O Agente 2 opera ações técnicas privilegiadas de modificação de infraestrutura (desbloqueio de contas no Active Directory e provimento de chaves temporárias de VPN). O subagente `sla-compliance-auditor` opera com isolamento de privilégio na camada de governança e cálculo contratual de prazos. Separar esse componente garante que o cálculo de SLA e o registro no ITSM ocorram de forma imutável, sem que estados transitórios de erros de rede ou credenciais interfiram nas regras de conformidade corporativa (SOX / ISO 27001).*
+| Subagente | Dono | Por que é isolado |
+| :--- | :--- | :--- |
+| `kb-researcher` (`agent1/subagents/kb_researcher.md`) | Agente 1 | Os artigos da base de conhecimento são longos. O subagente lê tudo num contexto separado e devolve só 3 a 5 linhas úteis, sem poluir a janela de contexto do Agente 1. |
+| `sla-compliance-auditor` (`agent2/subagents/sla_auditor.md`) | Agente 2 | Separa o cálculo de SLA e o registro ITSM (governança) das ações privilegiadas de infraestrutura, para que um erro técnico não contamine o registro de conformidade. |
 
 ---
 
-## 🤖 5. Uso do Claude Code no Desenvolvimento e Validação
+## 5. Uso do Claude Code no desenvolvimento
 
-Durante todo o ciclo de desenvolvimento do TP4, o **Claude Code** foi utilizado no terminal integrado como agente de engenharia:
-1. **Modelagem de Políticas:** Construção das permissões formais `allow`, `deny` e `ask` no arquivo `settings.json`.
-2. **Engenharia de Hooks:** Implementação dos interceptores `pre_tool_validator.py` e `post_tool_auditor.py` com testes unitários de borda.
-3. **Consistência de Contratos:** Auditoria contínua entre o código Python (Pydantic v2), as rotas FastAPI e a especificação do `CLAUDE.md` e `AGENTS.md`.
-4. **Validação Estrutural:** Verificação de esquemas JSON dos workflows do n8n para garantir compatibilidade com as versões dos nós de LangChain e Core.
-
----
-
-## 📊 6. Mapeamento Geral de Requisitos e Entregáveis
-
-| Requisito do Projeto | Componente Implementado | Arquivo / Tecnologia | Status |
-| :--- | :--- | :--- | :---: |
-| **Orquestração Assíncrona no n8n** | Pipeline completo com POST /run + Wait 2s + Polling GET /status | `workflows/tp4_main_orchestration_workflow.json` | ✅ Concluído |
-| **Agent Node no n8n** | Nó cognitivo de supervisão conectado a LLM e Tool | Nó `@n8n/n8n-nodes-langchain.agent` no workflow principal | ✅ Concluído |
-| **Sub-workflow Reutilizável** | Cálculo corporativo de SLA e prazos contratuais | `workflows/tp4_subworkflow_sla_calculator.json` | ✅ Concluído |
-| **Merge e Roteamento** | Roteamento condicional (If) e fusão de dados (Merge) | Nós de controle e merge no n8n | ✅ Concluído |
-| **Permissões por Agente** | Regras `allow`, `deny`, `ask` | `agent1/settings.json` e `agent2/settings.json` | ✅ Concluído |
-| **Hook PreToolUse** | Sanitização e validação de domínio corporativo | `agent1/hooks/pre_tool_validator.py` | ✅ Concluído |
-| **Hook PostToolUse** | Injeção de hash SHA-256 e auditoria de segurança | `agent2/hooks/post_tool_auditor.py` | ✅ Concluído |
-| **Skills Reutilizáveis** | Procedimentos operacionais padronizados | `agent1/SKILL.md` e `agent2/SKILL.md` | ✅ Concluído |
-| **Subagentes com Isolamento** | Pesquisa de KB e Auditoria de SLA isolados | `agent1/subagents/kb_researcher.md` e `agent2/subagents/sla_auditor.md` | ✅ Concluído |
-| **Contratos Atualizados** | Fonte única da verdade técnica por agente | `CLAUDE.md` e `AGENTS.md` em `agent1/` e `agent2/` | ✅ Concluído |
-| **Gatilho Oficial** | Chatbot corporativo Web em Chainlit | `chatbot/app.py` via Webhook HTTP | ✅ Concluído |
+O Claude Code foi usado como agente de engenharia em várias frentes:
+- modelagem de `settings.json` e implementação dos hooks;
+- conferência de consistência entre o código (Pydantic/FastAPI) e os contratos `CLAUDE.md` e `AGENTS.md`;
+- nesta revisão, a construção do workflow assíncrono **direto no n8n via MCP**: criação da Data Table, do sub-workflow e do workflow principal, testes de execução e exportação dos JSON para o repositório.
 
 ---
 
-## 🎬 7. Roteiro Sugerido para o Vídeo de Demonstração (Até 5 minutos)
+## 6. Mapa de requisitos
 
-Para gravação do vídeo exigido no Moodle, siga este roteiro planejado minuto a minuto:
-
-| Minuto | Tela a Exibir | O que Falar / Demonstrar |
-| :---: | :--- | :--- |
-| **00:00 - 01:00** | VS Code mostrando a estrutura do projeto | - Apresentar seu nome e a disciplina.<br>- Mostrar as pastas independentes `agent1/` e `agent2/`.<br>- Destacar a evolução do TP4: `settings.json` com permissões, os hooks em `hooks/`, as skills em `SKILL.md` e os subagentes em `subagents/`. |
-| **01:00 - 02:00** | Terminal executando os testes dos Hooks | - Rodar `python3 agent1/hooks/test_hook.py` e mostrar o bloqueio de e-mails inválidos e o log em `hook_audit.log`.<br>- Rodar `python3 agent2/hooks/test_hook.py` e mostrar o hash criptográfico SHA-256 gerado pelo PostToolUse. |
-| **02:00 - 03:30** | Interface do n8n (`http://localhost:5678`) | - Mostrar o workflow principal `tp4_main_orchestration_workflow.json`.<br>- Explicar os nós: Webhook, disparo do Agente 1, Wait (2s), polling de status.<br>- Destacar o **AI Agent Node com LLM e Tool** atuando como classificador.<br>- Destacar o nó **Execute Workflow** que chama o **Sub-workflow de SLA** isolado.<br>- Mostrar o nó de Merge unificando tudo. |
-| **03:30 - 04:30** | Chatbot Chainlit no Navegador (`http://localhost:8000`) | - Enviar a mensagem: *"Não consigo acessar a folha de pagamento. Erro 403. E-mail maria.souza@empresa.com"*. <br>- Alternar rapidamente para o n8n para mostrar os nós acendendo em verde em tempo real.<br>- Voltar ao Chainlit e mostrar a resposta final com triagem, desbloqueio de conta, SLA de 15 minutos e hash de compliance. |
-| **04:30 - 05:00** | Conclusão no VS Code / GitHub | - Ressaltar que os dois agentes operam de forma 100% desacoplada.<br>- O n8n é o único orquestrador e a especificação formal foi integralmente atendida.<br>- Finalizar agradecendo e encerrar. |
+| Requisito | Onde está | Status |
+| :--- | :--- | :-: |
+| n8n assíncrono (resposta imediata, sem esperar os agentes) | Nó `Responder 202 Imediato ao Chatbot` + Data Table + webhook `helpdesk-status` | ✅ |
+| Laço de polling nos 2 agentes (volta ao Wait enquanto `pending`) | Switches `Agente 1 Terminou?` / `Agente 2 Terminou?` | ✅ |
+| Merge recebendo as respostas dos 2 agentes | Nó `Merge: Respostas dos 2 Agentes` | ✅ |
+| AI Agent node (3º agente) com LLM e Tool | `Agente Supervisor (n8n)` + `query_support_policy` | ✅ |
+| Sub-workflow reutilizável | `tp4_subworkflow_sla_calculator.json` | ✅ |
+| Permissões por agente | `agent1/settings.json`, `agent2/settings.json` | ✅ |
+| Hooks PreToolUse / PostToolUse | `agent1/hooks/`, `agent2/hooks/` | ✅ |
+| Skills e subagentes | `SKILL.md`, `subagents/` | ✅ |
+| Gatilho único (chatbot) | `chatbot/app.py` | ✅ |
+| Link do GitHub | Topo de todos os relatórios | ✅ |
+| Vídeo de até 5 min | Roteiro pronto; gravação pelo aluno | ⏳ |
 
 ---
 
-## 📦 8. Instruções para Submissão no Moodle
+## 7. Como executar
 
-1. **Repositório GitHub:**
-   - Faça commit e push de todos os arquivos do TP4 para o seu repositório:
-     `git add . && git commit -m "feat: implementa entregaveis completos do TP4" && git push origin main`
-2. **Relatório em Markdown / PDF:**
-   - Envie este arquivo `RELATORIO_TECNICO_TP4.md` (ou exportado para PDF, se preferir).
-3. **Link do Vídeo:**
-   - Faça o upload do vídeo gravado (no YouTube como Não Listado, Google Drive ou OneDrive) e insira o link no topo do relatório do Moodle.
-4. **Arquivo ZIP:**
-   - Compacte a pasta do projeto (excluindo `.venv` e `__pycache__`) contendo os agentes, workflows e documentações.
+```bash
+source .venv/bin/activate
+uvicorn agent1.app:app --host 0.0.0.0 --port 8001     # terminal 1
+uvicorn agent2.app:app --host 0.0.0.0 --port 8002     # terminal 2
+python chatbot/run_chainlit.py run chatbot/app.py -w   # terminal 3 → http://localhost:8000
+```
+
+No n8n (`http://localhost:5678`):
+1. importe primeiro `workflows/tp4_subworkflow_sla_calculator.json` e publique;
+2. importe `workflows/tp4_main_orchestration_workflow.json`, confira o ID do sub-workflow no nó *Executar Sub-workflow de SLA* e a Data Table `helpdesk_tickets`;
+3. configure a credencial do nó *Modelo LLM (Proxy 9Router)* e publique.
+
+Teste rápido sem chatbot:
+
+```bash
+curl -X POST http://localhost:5678/webhook/helpdesk-triage-tp4 -H "Content-Type: application/json" \
+  -d '{"user_prompt":"Minha conta está bloqueada, erro 403 na folha. maria.souza@empresa.com","session_id":"demo"}'
+# → 202 {"ticket_id":"TCK-...","status":"processing", ...}   (responde na hora)
+
+curl "http://localhost:5678/webhook/helpdesk-status?ticket_id=TCK-..."
+# → {"status":"processing","stage":"triage_done"}  ...depois...  {"status":"done","result":{...}}
+```
+
+---
+
+## 8. Vídeo de demonstração
+
+O roteiro detalhado (o que mostrar e o que falar em cada minuto) é entregue à parte, junto com este relatório.
+
+**Link do vídeo:** _(inserir aqui após a gravação)_
+
+---
+
+## 9. O que depende de ação manual
+
+1. **Credencial do LLM no n8n:** criar uma credencial *OpenAI API* chamada "9Router Proxy (OpenAI compativel)" com a chave do 9Router e o Base URL `http://local:20128/v1`, e vinculá-la ao nó *Modelo LLM (Proxy 9Router)*. Sem ela o n8n não deixa **publicar** o workflow principal.
+2. **Chave do proxy no `.env`:** a `OPENAI_API_KEY` atual foi recusada pelo 9Router (`401 Invalid API key`). É preciso gerar uma chave nova no painel do 9Router e atualizar o `.env`. Sem isso o Agente 1 não consegue chamar o LLM.
+3. **Gravar e enviar o vídeo.**

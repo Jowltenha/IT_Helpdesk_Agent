@@ -25,7 +25,7 @@ pip install chainlit
 
 ### 2. Iniciar o Chatbot
 ```bash
-chainlit run chatbot/app.py -w
+python chatbot/run_chainlit.py run chatbot/app.py -w
 ```
 O Chainlit abrirá automaticamente no navegador em `http://localhost:8000`.
 

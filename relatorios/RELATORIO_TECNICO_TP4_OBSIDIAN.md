@@ -19,6 +19,8 @@ aliases:
   - "TP4 Orquestração e Governança"
 ---
 
+> 🔗 **Repositório GitHub:** https://github.com/Jowltenha/IT_Helpdesk_Agent
+
 # 📋 Relatório Técnico TP4: Orquestração no n8n, Governança Formal, Skills e Subagentes
 
 > [!ABSTRACT] Resumo do Entregável

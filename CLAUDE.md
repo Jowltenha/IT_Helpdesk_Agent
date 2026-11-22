@@ -1,5 +1,13 @@
 # IT Helpdesk Agent - Guia do Claude Code
 
+## ⚠️ Regras obrigatórias para relatórios e entregas
+
+- **SEMPRE** coloque o link do repositório GitHub no **topo** de qualquer relatório, roteiro ou documento de entrega gerado (arquivos em `relatorios/`, README, notas para o Obsidian etc.):
+  `> 🔗 **Repositório GitHub:** https://github.com/Jowltenha/IT_Helpdesk_Agent`
+  - Em arquivos com frontmatter YAML (notas do Obsidian), coloque o link logo **após** o bloco `---` final, para não quebrar o frontmatter.
+- Roteiros pessoais de gravação de vídeo (`relatorios/ROTEIRO_VIDEO_*.md`) são material de apoio e ficam no `.gitignore`.
+- O n8n roda em Docker (`n8n-dev`): de dentro dele, os agentes são acessados por `http://local:8001` / `http://local:8002` (e não por `localhost`).
+
 ## 📌 Visão Geral e Histórico do Projeto
 
 Este repositório contém o **Agente Inteligente de Triagem de Suporte de TI Nível 1**, desenvolvido como Projeto de Bloco. O projeto evoluiu em duas etapas principais:

@@ -1,3 +1,5 @@
+> 🔗 **Repositório GitHub:** https://github.com/Jowltenha/IT_Helpdesk_Agent
+
 # RELATÓRIO TÉCNICO - TP3: ARQUITETURA DE AGENTES DESACOPLADOS, FASTAPI ASSÍNCRONO, WORKFLOW N8N E AVALIAÇÃO DE PROMPTS
 
 **Disciplina:** Engenharia de Prompts e Agentes de IA  

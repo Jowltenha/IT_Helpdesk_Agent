@@ -37,6 +37,18 @@ export_to_obsidian.sh
 # Arquivos criados por engano com caminho do Windows no nome (ex.: "C:\Users\...")
 C:*
 
+# Roteiro pessoal de gravação do vídeo (material de apoio, não faz parte da entrega)
+relatorios/ROTEIRO_VIDEO_*.md
+
+# Arquivos gerados automaticamente pelo Chainlit ao iniciar
+.chainlit/
+chainlit.md
+.files/
+
+# Arquivos auxiliares do SQLite em modo WAL
+*.db-shm
+*.db-wal
+
 # Lixo do sistema operacional / editores
 .DS_Store
 Thumbs.db

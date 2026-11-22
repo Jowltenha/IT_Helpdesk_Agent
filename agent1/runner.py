@@ -11,7 +11,16 @@ from typing import Optional, Dict, Any, List
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
 
-from agents import Agent, Runner, set_default_openai_client, set_default_openai_api
+import re
+
+from agents import (
+    Agent,
+    AgentOutputSchema,
+    Runner,
+    OpenAIChatCompletionsModel,
+    set_default_openai_client,
+    set_default_openai_api,
+)
 from agents.memory import SQLiteSession as SDKSQLiteSession
 
 from agent1.models import HelpdeskResponse
@@ -50,6 +59,38 @@ Você deve preencher com rigor todos os campos do modelo de saída:
 """
 
 
+_MARKDOWN_JSON_BLOCK = re.compile(r"```(?:json)?\s*(\{.*?\})\s*```", re.DOTALL | re.IGNORECASE)
+
+
+def _extract_json_object(text: str) -> str:
+    """Extrai o objeto JSON de uma resposta que pode conter texto/markdown ao redor."""
+    text = (text or "").strip()
+    if text.startswith("{") and text.endswith("}"):
+        return text
+    block = _MARKDOWN_JSON_BLOCK.search(text)
+    if block:
+        return block.group(1)
+    start, end = text.find("{"), text.rfind("}")
+    if start != -1 and end > start:
+        return text[start:end + 1]
+    return text
+
+
+class MarkdownTolerantOutputSchema(AgentOutputSchema):
+    """
+    Schema de saída que tolera JSON cercado de texto ou markdown.
+
+    O modelo servido pelo proxy 9Router (ag/claude-sonnet-4-6) às vezes não respeita o
+    response_format e devolve uma frase introdutória + bloco ```json ... ``` + comentários,
+    o que faz o SDK falhar com "Invalid JSON when parsing model output". Aqui só o objeto
+    JSON é extraído antes da validação Pydantic, que continua estrita sobre o conteúdo
+    (HelpdeskResponse): campos, tipos e valores permitidos seguem sendo validados.
+    """
+
+    def validate_json(self, json_str: str):
+        return super().validate_json(_extract_json_object(json_str))
+
+
 class HelpdeskAgentRunner:
     """
     Executor do Agente 1 de Triagem N1 construído com o OpenAI Agents SDK.
@@ -78,8 +119,11 @@ class HelpdeskAgentRunner:
             name="IT_Helpdesk_N1_Agent",
             instructions=full_instructions,
             tools=HELP_DESK_TOOLS,
-            output_type=HelpdeskResponse,
-            model=self.model_name
+            output_type=MarkdownTolerantOutputSchema(HelpdeskResponse),
+            # O nome "ag/claude-sonnet-4-6" contém "/", que o SDK interpretaria como
+            # prefixo de provedor ("Unknown prefix: ag"). Envolver em
+            # OpenAIChatCompletionsModel força o uso direto do cliente do proxy 9Router.
+            model=OpenAIChatCompletionsModel(model=self.model_name, openai_client=self.client)
         )
 
     async def run(self, user_prompt: str, session_id: str = "default_session") -> HelpdeskResponse:

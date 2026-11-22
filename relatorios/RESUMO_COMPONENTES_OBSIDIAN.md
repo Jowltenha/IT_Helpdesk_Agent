@@ -15,6 +15,8 @@ aliases:
   - "Guia Rápido dos Agentes"
 ---
 
+> 🔗 **Repositório GitHub:** https://github.com/Jowltenha/IT_Helpdesk_Agent
+
 # 🚀 Resumo Executivo: Os 9 Componentes de Arquitetura (Slide 8)
 
 > [!TIP] Objetivo

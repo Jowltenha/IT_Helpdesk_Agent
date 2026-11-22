@@ -17,6 +17,8 @@ aliases:
   - "Especificação Slide 8"
 ---
 
+> 🔗 **Repositório GitHub:** https://github.com/Jowltenha/IT_Helpdesk_Agent
+
 # 📋 Relatório Executivo de Arquitetura: Sistema de Agentes Desacoplados de Suporte de TI
 
 > [!ABSTRACT] Resumo do Documento

@@ -1,5 +1,5 @@
 {
-  "name": "TP4 - Full Multi-Agent Orchestration with Agent Node & Sub-workflow",
+  "name": "TP4 - Orquestracao Assincrona Multi-Agente (Helpdesk)",
   "nodes": [
     {
       "parameters": {
@@ -8,96 +8,539 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "tp4-node-01-webhook-trigger",
-      "name": "Webhook Trigger (Chatbot Chainlit)",
+      "id": "c7c73288-f455-4341-9881-79308c0339ab",
+      "name": "Webhook Chatbot (Novo Chamado)",
       "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
-      "position": [160, 340],
-      "webhookId": "webhook-helpdesk-triage-tp4"
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        432
+      ],
+      "webhookId": "533d9b59-2fb0-4592-b360-92eb116ed9d8"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f1",
+              "name": "ticket_id",
+              "value": "=TCK-{{ $now.toFormat('yyyyMMdd-HHmmss') }}-{{ $execution.id }}",
+              "type": "string"
+            },
+            {
+              "id": "f2",
+              "name": "user_prompt",
+              "value": "={{ $json.body?.user_prompt ?? $json.user_prompt ?? '' }}",
+              "type": "string"
+            },
+            {
+              "id": "f3",
+              "name": "session_id",
+              "value": "={{ $json.body?.session_id ?? $json.session_id ?? 'sessao_tp4' }}",
+              "type": "string"
+            },
+            {
+              "id": "f4",
+              "name": "user_email",
+              "value": "={{ (String($json.body?.user_prompt ?? $json.user_prompt ?? '').match(/[\\w.+-]+@[\\w-]+\\.[\\w.]+/) || [])[0] || 'nao.informado@empresa.com' }}",
+              "type": "string"
+            },
+            {
+              "id": "f5",
+              "name": "created_at",
+              "value": "={{ $now.toUTC().toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1f76d00f-f7f6-4f93-8b04-d5b4f79f0d82",
+      "name": "Normalizar Chamado",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        224,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "CpNbNEKVKZrLGK3w",
+          "cachedResultName": "helpdesk_tickets"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ticket_id": "={{ $json.ticket_id }}",
+            "status": "processing",
+            "stage": "received",
+            "session_id": "={{ $json.session_id }}",
+            "user_prompt": "={{ $json.user_prompt }}",
+            "created_at": "={{ $json.created_at }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "ticket_id",
+              "displayName": "ticket_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "stage",
+              "displayName": "stage",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "session_id",
+              "displayName": "session_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "user_prompt",
+              "displayName": "user_prompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "result_json",
+              "displayName": "result_json",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "error_message",
+              "displayName": "error_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "completed_at",
+              "displayName": "completed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "72120a6b-f7ba-4195-9c63-ad5478c6d4c2",
+      "name": "Registrar Chamado (processing)",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        448,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ticket_id: $('Normalizar Chamado').first().json.ticket_id, status: 'processing', stage: 'received', message: 'Chamado recebido. Os agentes estao processando em segundo plano. Consulte o andamento pelo status_endpoint.', status_endpoint: '/webhook/helpdesk-status?ticket_id=' + $('Normalizar Chamado').first().json.ticket_id }) }}",
+        "options": {
+          "responseCode": 202
+        }
+      },
+      "id": "0f995172-a081-4181-be2b-9f18e8cd7bd7",
+      "name": "Responder 202 Imediato ao Chatbot",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        672,
+        432
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "http://localhost:8001/run",
+        "url": "http://local:8001/run",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"user_prompt\": \"{{ $json.body.user_prompt }}\",\n  \"session_id\": \"{{ $json.body.session_id || 'sessao_tp4' }}\"\n}",
+        "jsonBody": "={{ JSON.stringify({ user_prompt: $('Normalizar Chamado').first().json.user_prompt, session_id: $('Normalizar Chamado').first().json.session_id }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "dc99c286-6642-498c-8941-a073d1707beb",
+      "name": "Disparar Agente 1 (POST /run)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        896,
+        432
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e1",
+              "name": "error_message",
+              "value": "={{ $json.error?.message ?? $json.error ?? 'Tempo limite de polling excedido: o agente nao terminou em 2 minutos.' }}",
+              "type": "string"
+            },
+            {
+              "id": "e2",
+              "name": "completed_at",
+              "value": "={{ $now.toUTC().toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "da8c74a2-3a2b-46b5-9bbe-102b6c89e0ff",
+      "name": "Preparar Mensagem de Erro",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3824,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 3
+      },
+      "id": "6a070862-7328-48e0-943f-10d94810ed75",
+      "name": "Aguardar Agente 1 (3s)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        352
+      ],
+      "webhookId": "92a1d619-67ed-4b51-bcc2-c0bbfc70a4d2"
+    },
+    {
+      "parameters": {
+        "url": "=http://local:8001/status/{{ $('Disparar Agente 1 (POST /run)').first().json.task_id }}",
         "options": {
           "response": {
             "response": {
               "neverError": true
             }
-          }
+          },
+          "timeout": 10000
         }
       },
-      "id": "tp4-node-02-trigger-agent1",
-      "name": "HTTP Request - Trigger Agent 1",
+      "id": "a93d6467-32e1-43d8-9170-38f887149ef9",
+      "name": "Consultar Status Agente 1",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [400, 340]
+      "position": [
+        1344,
+        272
+      ]
     },
     {
       "parameters": {
-        "amount": 2,
-        "unit": "seconds"
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.status }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "done"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "concluido"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.status }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "pending"
+                  },
+                  {
+                    "leftValue": "={{ $runIndex }}",
+                    "operator": {
+                      "type": "number",
+                      "operation": "lt"
+                    },
+                    "rightValue": 40
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "pendente_volta_ao_wait"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "erro_ou_timeout"
+        }
       },
-      "id": "tp4-node-03-wait-agent1",
-      "name": "Wait for Agent 1 Execution",
-      "type": "n8n-nodes-base.wait",
-      "typeVersion": 1.1,
-      "position": [640, 340],
-      "webhookId": "wait-agent1-tp4-webhook"
+      "id": "37df5035-f5c8-4cee-b454-0c3034bbe538",
+      "name": "Agente 1 Terminou?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1568,
+        336
+      ]
     },
     {
       "parameters": {
-        "method": "GET",
-        "url": "=http://localhost:8001/status/{{ $('HTTP Request - Trigger Agent 1').item.json.task_id }}",
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "CpNbNEKVKZrLGK3w",
+          "cachedResultName": "helpdesk_tickets"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "ticket_id",
+              "keyValue": "={{ $('Normalizar Chamado').first().json.ticket_id }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "stage": "triage_done"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "ticket_id",
+              "displayName": "ticket_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "stage",
+              "displayName": "stage",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "session_id",
+              "displayName": "session_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "user_prompt",
+              "displayName": "user_prompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "result_json",
+              "displayName": "result_json",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "error_message",
+              "displayName": "error_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "completed_at",
+              "displayName": "completed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
         "options": {}
       },
-      "id": "tp4-node-04-poll-agent1",
-      "name": "HTTP Request - Poll Agent 1 Status",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [860, 340]
+      "id": "1ce76c5d-7604-40cd-9415-811851eec691",
+      "name": "Atualizar Etapa: Triagem Concluida",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1792,
+        224
+      ],
+      "alwaysOutputData": true
     },
     {
       "parameters": {
         "promptType": "define",
-        "text": "=Você é o Agente Cognitivo de Supervisão e Arbitragem do n8n (Agent Node de Alto Nível).\nAvalie o laudo técnico recebido do Agente 1 (Triagem N1):\n- Categoria: {{ $json.result.category }}\n- Severidade: {{ $json.result.severity }}\n- Requer Escalonamento: {{ $json.result.requires_human_escalation }}\n- Ação Recomendada: {{ $json.result.recommended_action }}\n- Evidências Coletadas: {{ JSON.stringify($json.result.reasoning_steps) }}\n\nSua missão é atuar como o juiz orquestrador: decida se o Agente 2 de Auto-Remediação deve intervir para desbloqueio ou failover, ou se o incidente deve ser apenas despachado.",
+        "text": "=Laudo do Agente 1 (Triagem N1):\n- Categoria: {{ $('Consultar Status Agente 1').last().json.result.category }}\n- Severidade: {{ $('Consultar Status Agente 1').last().json.result.severity }}\n- Requer escalonamento humano: {{ $('Consultar Status Agente 1').last().json.result.requires_human_escalation }}\n- Acao recomendada: {{ $('Consultar Status Agente 1').last().json.result.recommended_action }}\n\nDecida se o Agente 2 deve executar remediacao automatica.",
+        "hasOutputParser": true,
         "options": {
-          "systemMessage": "Você é o Agente Supervisor do pipeline n8n. Retorne em JSON estruturado com os campos: 'should_remediate' (boolean), 'target_action' ('UNLOCK_ACCOUNT', 'VPN_FAILOVER', ou 'NONE'), 'audit_comment' (string)."
+          "systemMessage": "Voce e o Agente Supervisor do pipeline de suporte de TI no n8n. Sua decisao define se o Agente 2 (Remediacao N2 / Despacho ITSM) sera acionado. Antes de decidir, SEMPRE chame a ferramenta query_support_policy passando a categoria do chamado. Regras, nesta ordem: (1) Se o laudo exigir escalonamento humano (requires_human_escalation = true): should_remediate=true e target_action=DISPATCH_INCIDENT, pois o Agente 2 abre o incidente ITSM para a equipe N2. (2) Senao, se a politica permitir remediacao automatica: should_remediate=true e target_action igual ao allowed_action da politica (UNLOCK_ACCOUNT ou VPN_FAILOVER). (3) Caso contrario: should_remediate=false e target_action=NONE. Escreva audit_comment em portugues, em uma frase curta e natural explicando a decisao para um analista de TI; NAO cite numeros de regras nem nomes de campos tecnicos."
         }
       },
-      "id": "tp4-node-05-ai-agent-node",
-      "name": "AI Agent Node (Classificador & Supervisor)",
+      "id": "56b91121-d64a-40a5-b83b-9713e00d79b1",
+      "name": "Agente Supervisor (n8n)",
       "type": "@n8n/n8n-nodes-langchain.agent",
-      "typeVersion": 1.7,
-      "position": [1100, 340]
+      "typeVersion": 3.1,
+      "position": [
+        2080,
+        224
+      ],
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "model": "gpt-4o-mini",
+        "model": {
+          "__rl": true,
+          "mode": "id",
+          "value": "ag/claude-sonnet-4-6"
+        },
+        "responsesApiEnabled": false,
         "options": {
           "temperature": 0.1
         }
       },
-      "id": "tp4-node-05b-lm-model",
-      "name": "OpenAI Chat Model",
+      "id": "29feae9d-50f5-46b5-8581-ce1946f4d24d",
+      "name": "Modelo LLM (Proxy 9Router)",
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
-      "typeVersion": 1.2,
-      "position": [1080, 560]
+      "typeVersion": 1.3,
+      "position": [
+        2016,
+        448
+      ]
     },
     {
       "parameters": {
-        "name": "query_support_policy",
-        "description": "Consulta as políticas de remediação e limites operacionais de TI para a categoria em análise.",
-        "jsCode": "return JSON.stringify({\n  policy_active: true,\n  auto_unlock_allowed: true,\n  vpn_failover_allowed: true,\n  sla_enforcement: 'STRICT'\n});"
+        "description": "Consulta as politicas de remediacao e escalonamento de TI. Entrada: nome da categoria do chamado (ex: Acessos/Senhas, Redes/VPN, Hardware, Software). Retorna a acao automatica permitida (allowed_action) e a acao de escalonamento (escalation_action).",
+        "jsCode": "const policies = {\n  'Acessos/Senhas': { auto_remediation_allowed: true, allowed_action: 'UNLOCK_ACCOUNT' },\n  'Redes/VPN': { auto_remediation_allowed: true, allowed_action: 'VPN_FAILOVER' },\n  'Hardware': { auto_remediation_allowed: false, allowed_action: 'NONE', note: 'Exige atendimento presencial' },\n  'Software': { auto_remediation_allowed: false, allowed_action: 'NONE' }\n};\nconst key = Object.keys(policies).find(k => String(query).toLowerCase().includes(k.toLowerCase().split('/')[0]));\nconst policy = key ? { category: key, ...policies[key] } : { category: query, auto_remediation_allowed: false, allowed_action: 'NONE' };\npolicy.escalation_action = 'DISPATCH_INCIDENT';\npolicy.escalation_rule = 'Se o laudo exigir escalonamento humano, o Agente 2 deve ser acionado com DISPATCH_INCIDENT para abrir o incidente ITSM para a equipe N2, em qualquer categoria.';\nreturn JSON.stringify(policy);"
       },
-      "id": "tp4-node-05c-agent-tool",
-      "name": "Custom Tool - IT Policy Checker",
-      "type": "@n8n/n8n-nodes-langchain.toolCustom",
-      "typeVersion": 1.1,
-      "position": [1260, 560]
+      "id": "bab8e25e-2697-4409-90a0-be495584d5b5",
+      "name": "query_support_policy",
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        2144,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{ \"should_remediate\": true, \"target_action\": \"UNLOCK_ACCOUNT\", \"audit_comment\": \"Conta bloqueada no AD; politica permite desbloqueio automatico.\" }"
+      },
+      "id": "63e1d7e2-8dab-4bd9-bdfd-693b431389c5",
+      "name": "Formato da Decisao",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        2272,
+        448
+      ]
     },
     {
       "parameters": {
@@ -105,284 +548,1038 @@
           "options": {
             "caseSensitive": true,
             "leftValue": "",
-            "typeValidation": "strict"
+            "typeValidation": "loose",
+            "version": 1
           },
           "conditions": [
             {
-              "id": "cond-needs-remediation",
-              "leftValue": "={{ $('HTTP Request - Poll Agent 1 Status').item.json.result.category }}",
-              "rightValue": "Acessos/Senhas",
+              "leftValue": "={{ $json.output?.should_remediate ?? ['Acessos/Senhas', 'Redes/VPN'].includes($('Consultar Status Agente 1').last().json.result.category) }}",
               "operator": {
-                "type": "string",
-                "operation": "equals"
-              }
-            },
-            {
-              "id": "cond-needs-vpn-failover",
-              "leftValue": "={{ $('HTTP Request - Poll Agent 1 Status').item.json.result.category }}",
-              "rightValue": "Redes/VPN",
-              "operator": {
-                "type": "string",
-                "operation": "equals"
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
               }
             }
           ],
-          "combinator": "or"
-        }
+          "combinator": "and"
+        },
+        "options": {}
       },
-      "id": "tp4-node-06-conditional-routing",
-      "name": "If - Requires Remediation (Agent 2)",
+      "id": "bff2c292-0ad8-4e73-9952-89588e36fd08",
+      "name": "Precisa de Remediacao (Agente 2)?",
       "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [1360, 340]
+      "typeVersion": 2.2,
+      "position": [
+        2480,
+        224
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "http://localhost:8002/run",
+        "url": "http://local:8002/run",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"ticket_id\": \"TCK-{{ $now.toFormat('yyyyMMdd-HHmmss') }}\",\n  \"user_email\": \"{{ $('Webhook Trigger (Chatbot Chainlit)').item.json.body.user_prompt.includes('@') ? $('Webhook Trigger (Chatbot Chainlit)').item.json.body.user_prompt.match(/[\\w.-]+@[\\w.-]+/)[0] : 'maria.souza@empresa.com' }}\",\n  \"category\": \"{{ $('HTTP Request - Poll Agent 1 Status').item.json.result.category }}\",\n  \"severity\": \"{{ $('HTTP Request - Poll Agent 1 Status').item.json.result.severity }}\",\n  \"recommended_action\": \"{{ $('HTTP Request - Poll Agent 1 Status').item.json.result.recommended_action }}\",\n  \"requires_human_escalation\": {{ $('HTTP Request - Poll Agent 1 Status').item.json.result.requires_human_escalation }},\n  \"action_type\": \"{{ $('HTTP Request - Poll Agent 1 Status').item.json.result.category === 'Acessos/Senhas' ? 'UNLOCK_ACCOUNT' : 'VPN_FAILOVER' }}\"\n}",
-        "options": {}
-      },
-      "id": "tp4-node-07-trigger-agent2",
-      "name": "HTTP Request - Trigger Agent 2",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [1620, 220]
-    },
-    {
-      "parameters": {
-        "amount": 2,
-        "unit": "seconds"
-      },
-      "id": "tp4-node-08-wait-agent2",
-      "name": "Wait for Agent 2 Execution",
-      "type": "n8n-nodes-base.wait",
-      "typeVersion": 1.1,
-      "position": [1840, 220],
-      "webhookId": "wait-agent2-tp4-webhook"
-    },
-    {
-      "parameters": {
-        "method": "GET",
-        "url": "=http://localhost:8002/status/{{ $('HTTP Request - Trigger Agent 2').item.json.task_id }}",
-        "options": {}
-      },
-      "id": "tp4-node-09-poll-agent2",
-      "name": "HTTP Request - Poll Agent 2 Status",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [2060, 220]
-    },
-    {
-      "parameters": {
-        "workflowId": "subworkflow-sla-calculator",
-        "workflowOptions": {
-          "fields": {
-            "values": [
-              {
-                "name": "ticket_id",
-                "value": "={{ $('HTTP Request - Poll Agent 1 Status').item.json.result.ticket_summary }}"
-              },
-              {
-                "name": "category",
-                "value": "={{ $('HTTP Request - Poll Agent 1 Status').item.json.result.category }}"
-              },
-              {
-                "name": "severity",
-                "value": "={{ $('HTTP Request - Poll Agent 1 Status').item.json.result.severity }}"
-              },
-              {
-                "name": "user_email",
-                "value": "maria.souza@empresa.com"
-              }
-            ]
-          }
+        "jsonBody": "={{ JSON.stringify({ ticket_id: $('Normalizar Chamado').first().json.ticket_id, user_email: $('Normalizar Chamado').first().json.user_email, category: $('Consultar Status Agente 1').last().json.result.category, severity: $('Consultar Status Agente 1').last().json.result.severity, recommended_action: $('Consultar Status Agente 1').last().json.result.recommended_action, requires_human_escalation: $('Consultar Status Agente 1').last().json.result.requires_human_escalation, action_type: ($json.output?.target_action && $json.output.target_action !== 'NONE') ? $json.output.target_action : ($('Consultar Status Agente 1').last().json.result.category === 'Redes/VPN' ? 'VPN_FAILOVER' : 'UNLOCK_ACCOUNT') }) }}",
+        "options": {
+          "timeout": 15000
         }
       },
-      "id": "tp4-node-10-execute-subworkflow",
-      "name": "Execute Sub-workflow (SLA Calculator)",
-      "type": "n8n-nodes-base.executeWorkflow",
-      "typeVersion": 1.1,
-      "position": [2300, 340]
+      "id": "4613d64a-4ece-415e-8279-a610c95ac65f",
+      "name": "Disparar Agente 2 (POST /run)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2704,
+        160
+      ],
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
-        "mode": "combine",
-        "combinationMode": "mergeByPosition",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "s1",
+              "name": "ticket_id",
+              "value": "={{ $('Normalizar Chamado').first().json.ticket_id }}",
+              "type": "string"
+            },
+            {
+              "id": "s2",
+              "name": "category",
+              "value": "={{ $('Consultar Status Agente 1').last().json.result.category }}",
+              "type": "string"
+            },
+            {
+              "id": "s3",
+              "name": "severity",
+              "value": "={{ $('Consultar Status Agente 1').last().json.result.severity }}",
+              "type": "string"
+            },
+            {
+              "id": "s4",
+              "name": "user_email",
+              "value": "={{ $('Normalizar Chamado').first().json.user_email }}",
+              "type": "string"
+            }
+          ]
+        },
         "options": {}
       },
-      "id": "tp4-node-11-merge-all",
-      "name": "Merge Agent 1, Agent 2 & Sub-workflow",
-      "type": "n8n-nodes-base.merge",
-      "typeVersion": 3,
-      "position": [2540, 340]
+      "id": "524ea68c-19ee-4057-9a82-16572b528a96",
+      "name": "Preparar Dados para SLA",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        4048,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 3
+      },
+      "id": "d9d048d2-8310-466b-a31e-98bc9e050237",
+      "name": "Aguardar Agente 2 (3s)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2928,
+        80
+      ],
+      "webhookId": "895b2c2a-c54f-4ccc-ba9b-f098bdf87cec"
+    },
+    {
+      "parameters": {
+        "url": "=http://local:8002/status/{{ $('Disparar Agente 2 (POST /run)').first().json.task_id }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "402cbb8a-062c-43c8-aab4-af2a72e7110a",
+      "name": "Consultar Status Agente 2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3152,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.status }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "done"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "concluido"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.status }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "pending"
+                  },
+                  {
+                    "leftValue": "={{ $runIndex }}",
+                    "operator": {
+                      "type": "number",
+                      "operation": "lt"
+                    },
+                    "rightValue": 40
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "pendente_volta_ao_wait"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "erro_ou_timeout"
+        }
+      },
+      "id": "502d2297-1179-4440-b312-245cb0b071e6",
+      "name": "Agente 2 Terminou?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        3376,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "BPDzhhNbkyZ4VDoI",
+          "cachedResultName": "TP4 - Sub-workflow: Calculadora de SLA"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "50aeccd9-4ed3-44ff-addc-7ab7149fd6d7",
+      "name": "Executar Sub-workflow de SLA",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.4,
+      "position": [
+        4272,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Junta tudo: dados do chamado + Merge (respostas dos 2 agentes) + SLA do sub-workflow\nconst ticket = $('Normalizar Chamado').first().json;\nconst merged = $('Merge: Respostas dos 2 Agentes').first().json;\nconst result = {\n  ticket_id: ticket.ticket_id,\n  session_id: ticket.session_id,\n  triage_n1: merged.triage_n1 ?? null,\n  supervisor_decision: merged.supervisor_decision ?? null,\n  remediation_n2: merged.remediation_n2 ?? null,\n  agent1_task_id: merged.agent1_task_id ?? null,\n  agent2_task_id: merged.agent2_task_id || null,\n  subworkflow_sla: $input.first().json\n};\nreturn [{ json: { ticket_id: ticket.ticket_id, result_json: JSON.stringify(result), completed_at: new Date().toISOString() } }];"
+      },
+      "id": "e39e9373-60f2-4353-8dcb-872b49c2a77c",
+      "name": "Consolidar Resultado Final",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4496,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "CpNbNEKVKZrLGK3w",
+          "cachedResultName": "helpdesk_tickets"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "ticket_id",
+              "keyValue": "={{ $('Normalizar Chamado').first().json.ticket_id }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "done",
+            "stage": "completed",
+            "result_json": "={{ $json.result_json }}",
+            "completed_at": "={{ $json.completed_at }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "ticket_id",
+              "displayName": "ticket_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "stage",
+              "displayName": "stage",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "session_id",
+              "displayName": "session_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "user_prompt",
+              "displayName": "user_prompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "result_json",
+              "displayName": "result_json",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "error_message",
+              "displayName": "error_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "completed_at",
+              "displayName": "completed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3391d508-a7dc-40ac-8c5d-9f50f4d9029c",
+      "name": "Salvar Resultado (done)",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        4720,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "CpNbNEKVKZrLGK3w",
+          "cachedResultName": "helpdesk_tickets"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "ticket_id",
+              "keyValue": "={{ $('Normalizar Chamado').first().json.ticket_id }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "error",
+            "stage": "failed",
+            "error_message": "={{ $json.error_message }}",
+            "completed_at": "={{ $json.completed_at }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "ticket_id",
+              "displayName": "ticket_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "stage",
+              "displayName": "stage",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "session_id",
+              "displayName": "session_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "user_prompt",
+              "displayName": "user_prompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "result_json",
+              "displayName": "result_json",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "error_message",
+              "displayName": "error_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "completed_at",
+              "displayName": "completed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4684e8de-bae4-4935-896b-268ac37221fb",
+      "name": "Salvar Falha (error)",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        4048,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "path": "helpdesk-status",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "ddb727cb-bc76-4a12-9644-89e01134da84",
+      "name": "Webhook Consulta de Status",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        688
+      ],
+      "webhookId": "947d1a1d-3f60-4611-a5f3-f25cfed4b5a3"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "CpNbNEKVKZrLGK3w",
+          "cachedResultName": "helpdesk_tickets"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "ticket_id",
+              "keyValue": "={{ $json.query?.ticket_id ?? '' }}"
+            }
+          ]
+        },
+        "limit": 1
+      },
+      "id": "2d581e5c-a636-484a-b847-b10d08f5a574",
+      "name": "Buscar Chamado na Tabela",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        224,
+        688
+      ],
+      "alwaysOutputData": true
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={\n  \"status\": \"SUCCESS\",\n  \"tp4_orchestration\": true,\n  \"session_id\": \"{{ $('Webhook Trigger (Chatbot Chainlit)').item.json.body.session_id }}\",\n  \"triage_n1\": {\n    \"ticket_summary\": \"{{ $('HTTP Request - Poll Agent 1 Status').item.json.result.ticket_summary }}\",\n    \"category\": \"{{ $('HTTP Request - Poll Agent 1 Status').item.json.result.category }}\",\n    \"severity\": \"{{ $('HTTP Request - Poll Agent 1 Status').item.json.result.severity }}\",\n    \"recommended_action\": \"{{ $('HTTP Request - Poll Agent 1 Status').item.json.result.recommended_action }}\",\n    \"requires_human_escalation\": {{ $('HTTP Request - Poll Agent 1 Status').item.json.result.requires_human_escalation }},\n    \"reasoning_steps\": {{ JSON.stringify($('HTTP Request - Poll Agent 1 Status').item.json.result.reasoning_steps) }},\n    \"tools_invoked\": {{ JSON.stringify($('HTTP Request - Poll Agent 1 Status').item.json.result.tools_invoked) }},\n    \"confidence_score\": {{ $('HTTP Request - Poll Agent 1 Status').item.json.result.confidence_score }}\n  },\n  \"remediation_n2\": {{ $('HTTP Request - Poll Agent 2 Status')?.item?.json?.result ? JSON.stringify($('HTTP Request - Poll Agent 2 Status').item.json.result) : 'null' }},\n  \"subworkflow_sla\": {{ JSON.stringify($('Execute Sub-workflow (SLA Calculator)').item.json) }}\n}",
+        "responseBody": "={{ $json.ticket_id ? JSON.stringify({ ticket_id: $json.ticket_id, status: $json.status, stage: $json.stage, result: $json.result_json ? JSON.parse($json.result_json) : null, error: $json.error_message || null, created_at: $json.created_at, completed_at: $json.completed_at || null }) : JSON.stringify({ ticket_id: $('Webhook Consulta de Status').first().json.query?.ticket_id ?? null, status: 'not_found' }) }}",
+        "options": {
+          "responseCode": "={{ $json.ticket_id ? 200 : 404 }}"
+        }
+      },
+      "id": "bf21fce6-92b7-4fc1-9f51-3a3093abaf16",
+      "name": "Responder Status do Chamado",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        448,
+        688
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "r1a",
+              "name": "ticket_id",
+              "value": "={{ $('Normalizar Chamado').first().json.ticket_id }}",
+              "type": "string"
+            },
+            {
+              "id": "r1b",
+              "name": "agent1_task_id",
+              "value": "={{ $('Disparar Agente 1 (POST /run)').first().json.task_id }}",
+              "type": "string"
+            },
+            {
+              "id": "r1c",
+              "name": "triage_n1",
+              "value": "={{ $('Consultar Status Agente 1').last().json.result }}",
+              "type": "object"
+            }
+          ]
+        },
         "options": {}
       },
-      "id": "tp4-node-12-respond-webhook",
-      "name": "Respond to Webhook (Chatbot Response)",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
-      "position": [2780, 340]
+      "id": "93bd48b6-0523-4284-bb27-83088dbc2108",
+      "name": "Resposta do Agente 1",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2480,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "r2a",
+              "name": "agent2_task_id",
+              "value": "={{ $('Disparar Agente 2 (POST /run)').first().json.task_id }}",
+              "type": "string"
+            },
+            {
+              "id": "r2b",
+              "name": "remediation_n2",
+              "value": "={{ $json.result }}",
+              "type": "object"
+            },
+            {
+              "id": "r2c",
+              "name": "supervisor_decision",
+              "value": "={{ $('Agente Supervisor (n8n)').first().json.output ?? { fallback: true, motivo: 'Agente Supervisor indisponivel; decisao pela categoria' } }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6655b096-9112-4d8c-b17a-5ad7e1ac3ece",
+      "name": "Resposta do Agente 2",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3600,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "r3a",
+              "name": "agent2_task_id",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "r3b",
+              "name": "remediation_n2",
+              "value": "={{ { skipped: true, reason: $('Agente Supervisor (n8n)').first().json.output?.audit_comment ?? 'Supervisor decidiu que o Agente 2 nao precisa ser acionado' } }}",
+              "type": "object"
+            },
+            {
+              "id": "r3c",
+              "name": "supervisor_decision",
+              "value": "={{ $('Agente Supervisor (n8n)').first().json.output ?? { fallback: true, motivo: 'Agente Supervisor indisponivel; decisao pela categoria' } }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "80662903-1901-4966-ad8d-bc33b1aa132e",
+      "name": "Agente 2 Nao Necessario",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2928,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {
+          "includeUnpaired": false
+        }
+      },
+      "id": "dddda814-80a5-4555-ac83-1134619b3494",
+      "name": "Merge: Respostas dos 2 Agentes",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        3824,
+        352
+      ]
     }
   ],
-  "pinData": {},
   "connections": {
-    "Webhook Trigger (Chatbot Chainlit)": {
+    "Webhook Chatbot (Novo Chamado)": {
       "main": [
         [
           {
-            "node": "HTTP Request - Trigger Agent 1",
+            "node": "Normalizar Chamado",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "HTTP Request - Trigger Agent 1": {
+    "Normalizar Chamado": {
       "main": [
         [
           {
-            "node": "Wait for Agent 1 Execution",
+            "node": "Registrar Chamado (processing)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Wait for Agent 1 Execution": {
+    "Registrar Chamado (processing)": {
       "main": [
         [
           {
-            "node": "HTTP Request - Poll Agent 1 Status",
+            "node": "Responder 202 Imediato ao Chatbot",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "HTTP Request - Poll Agent 1 Status": {
+    "Responder 202 Imediato ao Chatbot": {
       "main": [
         [
           {
-            "node": "AI Agent Node (Classificador & Supervisor)",
+            "node": "Disparar Agente 1 (POST /run)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "OpenAI Chat Model": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "AI Agent Node (Classificador & Supervisor)",
-            "type": "ai_languageModel",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Custom Tool - IT Policy Checker": {
-      "ai_tool": [
-        [
-          {
-            "node": "AI Agent Node (Classificador & Supervisor)",
-            "type": "ai_tool",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "AI Agent Node (Classificador & Supervisor)": {
+    "Disparar Agente 1 (POST /run)": {
       "main": [
         [
           {
-            "node": "If - Requires Remediation (Agent 2)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "If - Requires Remediation (Agent 2)": {
-      "main": [
-        [
-          {
-            "node": "HTTP Request - Trigger Agent 2",
+            "node": "Aguardar Agente 1 (3s)",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Execute Sub-workflow (SLA Calculator)",
+            "node": "Preparar Mensagem de Erro",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "HTTP Request - Trigger Agent 2": {
+    "Preparar Mensagem de Erro": {
       "main": [
         [
           {
-            "node": "Wait for Agent 2 Execution",
+            "node": "Salvar Falha (error)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Wait for Agent 2 Execution": {
+    "Aguardar Agente 1 (3s)": {
       "main": [
         [
           {
-            "node": "HTTP Request - Poll Agent 2 Status",
+            "node": "Consultar Status Agente 1",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "HTTP Request - Poll Agent 2 Status": {
+    "Consultar Status Agente 1": {
       "main": [
         [
           {
-            "node": "Execute Sub-workflow (SLA Calculator)",
+            "node": "Agente 1 Terminou?",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Execute Sub-workflow (SLA Calculator)": {
+    "Agente 1 Terminou?": {
       "main": [
         [
           {
-            "node": "Merge Agent 1, Agent 2 & Sub-workflow",
+            "node": "Atualizar Etapa: Triagem Concluida",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Aguardar Agente 1 (3s)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar Mensagem de Erro",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Merge Agent 1, Agent 2 & Sub-workflow": {
+    "Atualizar Etapa: Triagem Concluida": {
       "main": [
         [
           {
-            "node": "Respond to Webhook (Chatbot Response)",
+            "node": "Agente Supervisor (n8n)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Resposta do Agente 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agente Supervisor (n8n)": {
+      "main": [
+        [
+          {
+            "node": "Precisa de Remediacao (Agente 2)?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Modelo LLM (Proxy 9Router)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agente Supervisor (n8n)",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "query_support_policy": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente Supervisor (n8n)",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formato da Decisao": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Agente Supervisor (n8n)",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Precisa de Remediacao (Agente 2)?": {
+      "main": [
+        [
+          {
+            "node": "Disparar Agente 2 (POST /run)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Agente 2 Nao Necessario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Disparar Agente 2 (POST /run)": {
+      "main": [
+        [
+          {
+            "node": "Aguardar Agente 2 (3s)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar Mensagem de Erro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Dados para SLA": {
+      "main": [
+        [
+          {
+            "node": "Executar Sub-workflow de SLA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aguardar Agente 2 (3s)": {
+      "main": [
+        [
+          {
+            "node": "Consultar Status Agente 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar Status Agente 2": {
+      "main": [
+        [
+          {
+            "node": "Agente 2 Terminou?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Executar Sub-workflow de SLA": {
+      "main": [
+        [
+          {
+            "node": "Consolidar Resultado Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consolidar Resultado Final": {
+      "main": [
+        [
+          {
+            "node": "Salvar Resultado (done)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Consulta de Status": {
+      "main": [
+        [
+          {
+            "node": "Buscar Chamado na Tabela",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Chamado na Tabela": {
+      "main": [
+        [
+          {
+            "node": "Responder Status do Chamado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agente 2 Terminou?": {
+      "main": [
+        [
+          {
+            "node": "Resposta do Agente 2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Aguardar Agente 2 (3s)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar Mensagem de Erro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resposta do Agente 1": {
+      "main": [
+        [
+          {
+            "node": "Merge: Respostas dos 2 Agentes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resposta do Agente 2": {
+      "main": [
+        [
+          {
+            "node": "Merge: Respostas dos 2 Agentes",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Agente 2 Nao Necessario": {
+      "main": [
+        [
+          {
+            "node": "Merge: Respostas dos 2 Agentes",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge: Respostas dos 2 Agentes": {
+      "main": [
+        [
+          {
+            "node": "Preparar Dados para SLA",
             "type": "main",
             "index": 0
           }
         ]
       ]
     }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true,
+    "binaryMode": "separate"
+  },
+  "meta": {
+    "exportedFrom": "n8n 2.42.4",
+    "workflowId": "wt8HmLdSFt9VQT51"
   }
 }

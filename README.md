@@ -1,3 +1,5 @@
+> 🔗 **Repositório GitHub:** https://github.com/Jowltenha/IT_Helpdesk_Agent
+
 # IT Helpdesk Agent - Arquitetura de Agentes de IA Desacoplados
 
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
@@ -20,7 +22,7 @@ Este repositório contém a implementação do **Sistema de Agentes Inteligentes
 | **2** | **Memória persistente com `SQLiteSession`** | `agent1/memory.py` | Implementada exclusivamente no Agente 1 via `agents.memory.SQLiteSession` do OpenAI Agents SDK (`agent1_sessions.db`). |
 | **3** | **RAG por Embeddings Vetoriais** | `agent1/rag.py` | Busca semântica densa com similaridade de cosseno para recuperação de procedimentos SOP da Base de Conhecimento. |
 | **4** | **APIs REST dos 2 agentes (`/run` e `/status`)** | `agent1/app.py` & `agent2/app.py` | FastAPI assíncrono: `POST /run` (retorna `202 Accepted` com `task_id` imediato) e `GET /status/{task_id}` com `BackgroundTasks`. |
-| **5** | **Workflow n8n com invocação assíncrona & polling** | `workflows/tp3_full_orchestration_workflow.json` | Dispara `/run`, pausa via Wait Node (2s) e executa loop de polling em `/status` até a conclusão da LLM sem risco de timeout. |
+| **5** | **Workflow n8n com invocação assíncrona & polling** | `workflows/tp4_main_orchestration_workflow.json` | O webhook responde `202 + ticket_id` imediatamente (sem esperar os agentes); em segundo plano, cada agente tem laço `Wait 3s → GET /status → Switch` que volta ao Wait enquanto `pending`; o Merge recebe as respostas dos dois agentes; o status fica consultável em `GET /webhook/helpdesk-status`. |
 | **6** | **Servidor MCP expondo ferramentas de agente** | `agent1/mcp_server.py` | Servidor Model Context Protocol expondo `check_system_status`, `lookup_user_account` e `query_troubleshooting_kb`. |
 | **7** | **Orquestração dos dois agentes no n8n** | `workflows/` | Roteamento condicional (If/Switch) que analisa o laudo do Agente 1, aciona o Agente 2 e executa o merge dos dados. |
 | **8** | **Terceiro agente dentro do n8n (Agent node)** | Nó de Agente LLM no n8n | Agente cognitivo encarregado de classificar se o incidente exige intervenção e coordenar o merge dos pareceres. |
@@ -128,7 +130,7 @@ uvicorn agent2.app:app --host 0.0.0.0 --port 8002 --reload
 
 ### 4. Iniciar o Chatbot Corporativo Web (Chainlit - Porta 8000)
 ```bash
-chainlit run chatbot/app.py -w
+python chatbot/run_chainlit.py run chatbot/app.py -w
 ```
 Acesse `http://localhost:8000` no navegador para interagir com o agente.
 
