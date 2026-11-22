@@ -5,6 +5,8 @@
 **Disciplina:** Engenharia de Prompts e Agentes de IA  
 **Projeto:** Agente Inteligente de Triagem de Suporte de TI Nível 1 & Agente de Auto-Remediação N2  
 **Aluno:** João Pedro Barboza  
+**Repositório:** https://github.com/Jowltenha/IT_Helpdesk_Agent
+**Vídeo:** https://youtu.be/OstUiLyFwWU
 **Data:** Outubro de 2026  
 
 ---

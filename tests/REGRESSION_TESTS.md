@@ -2,7 +2,7 @@
 
 # Testes Regressivos: IT Helpdesk Multi-Agente (TP5)
 
-**Aluno:** João Pedro Barboza · **Disciplina:** Engenharia de Prompts e Agentes de IA · [CÓDIGO DA DISCIPLINA]
+**Aluno:** João Pedro Barboza · **Disciplina:** Engenharia de Prompts e Agentes de IA
 
 **Execução final:** 22/11/2026, 19:26–19:30 UTC, com o código final (Agente 1 prompt `v4-tp5`, Agente 2 `v3-tp5`, modelo `AG-DPS-CLAUDE-SONNET`). **Resultado: ✅ 6/6 cenários, 27/27 asserções *must*, 6/6 *should*.**
 

@@ -27,7 +27,7 @@ aliases:
 # Relatório Técnico Final, TP5: Operacionalização com Contratos MCP, Testes e Observabilidade
 
 **Aluno:** João Pedro Barboza
-**Disciplina:** Engenharia de Prompts e Agentes de IA · **Código:** [CÓDIGO DA DISCIPLINA]
+**Disciplina:** Engenharia de Prompts e Agentes de IA
 **Projeto:** Sistema de Agentes Inteligentes de Suporte de TI Corporativo (N1 / N2)
 **Repositório:** https://github.com/Jowltenha/IT_Helpdesk_Agent
 **Vídeo:** https://youtu.be/un4vYjEExnM
