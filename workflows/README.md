@@ -7,7 +7,7 @@ Os workflows do **n8n** orquestram, de forma assíncrona e desacoplada, o **Agen
 | Arquivo | Workflow no n8n | ID | Status |
 | :--- | :--- | :--- | :--- |
 | **`tp5_main_orchestration_workflow.json`** | TP5 - Orquestracao Multi-Agente (Helpdesk) com Error Handling | `wt8HmLdSFt9VQT51` | publicado (34 nós) |
-| **`tp5_error_handler_workflow.json`** | TP5 - Error Handler: Alertas do Helpdesk | `XTwrw7QKUh7netfC` | publicado (4 nós) |
+| **`tp5_error_handler_workflow.json`** | TP5 - Error Handler: Alertas do Helpdesk | `XTwrw7QKUh7netfC` | publicado (7 nós: Error Trigger + webhook de consulta) |
 | **`tp5_subworkflow_sla_calculator.json`** | TP4 - Sub-workflow: Calculadora de SLA | `BPDzhhNbkyZ4VDoI` | publicado (5 nós) |
 | `tp4_*.json`, `tp3_*.json` | Versões históricas | — | referência |
 
@@ -45,6 +45,8 @@ O workflow principal tem `settings.errorWorkflow = XTwrw7QKUh7netfC`. **Qualquer
 ```text
 Error Trigger ► Montar Alerta (Code) ► Notificar Discord (#helpdesk-alertas) ► Registrar Alerta (Data Table helpdesk_alerts)
 ```
+
+O mesmo workflow tem um segundo gatilho, `GET /webhook/helpdesk-alerts` (Webhook ► Buscar Ultimos Alertas ► Responder). Ele devolve os 5 alertas mais recentes, que aparecem no chatbot no botão **"Ver alertas de falha (Error Workflow)"**.
 
 | Nó | Função |
 | :--- | :--- |

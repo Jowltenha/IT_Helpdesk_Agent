@@ -12,6 +12,7 @@
 - `regression_20261122T184613Z.json`: rodada 1 do TP5, 6/6;
 - `regression_20261122T191246Z.json`: rodada 2, 6/6. O modelo antigo ainda estava disponível;
 - `regression_20261122T192649Z.json`: execução final.
+- `regression_20261122T211546Z.json`: RT-06 repetido depois de configurar o webhook real do Discord. Alerta `ALR-MWSC6SK9` entregue no canal `#helpdesk-alertas` com `notified_channel = discord_OK`.
 
 ---
 
@@ -102,7 +103,7 @@
 | **Saída esperada** | O Agente 1 conclui. O `POST` ao Agente 2 falha após 2 tentativas. O ticket vira `status=error` / `stage=failed` com a mensagem. O **Error Workflow** grava o alerta (`agent=agent2`) e notifica o Discord. |
 | **Saída real** | Ticket `error` · `failed` · `error="connect ECONNREFUSED 172.17.0.1:8002"`. Error Workflow: alerta gravado em `helpdesk_alerts` com `agent=agent2` e o `ticket_id`. O script religou o Agente 2 automaticamente. |
 | **Resultado** | ✅ must 3/3 · 28,6 s · `TCK-20261122-162931-426` |
-| **Observação** | `notified_channel = discord_FALHOU` porque a credencial *Helpdesk Alertas - Discord Webhook* ainda tem a URL provisória. O roteamento funcionou: o nó do Discord foi executado e a falha de entrega ficou registrada sem derrubar o handler. Com a URL real do webhook, o valor passa a `discord_OK`. |
+| **Observação** | Na execução final, o alerta registrou `discord_FALHOU` porque a credencial do Discord ainda tinha a URL provisória. O handler não caiu e registrou a falha de entrega. Depois que a URL real foi configurada, o RT-06 foi repetido (`regression_20261122T211546Z.json`): o alerta `ALR-MWSC6SK9` chegou ao canal **#helpdesk-alertas** com componente, ticket, erro e link da execução, e ficou com `notified_channel = discord_OK`. |
 
 ---
 

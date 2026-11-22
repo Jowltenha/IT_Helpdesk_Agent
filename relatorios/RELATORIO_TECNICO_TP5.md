@@ -34,7 +34,7 @@ O sistema tem dois agentes Python **independentes**, e a integração entre eles
 | **Agente 1, Triagem N1** (`agent1/`) | Diagnostica o chamado em linguagem natural. Usa OpenAI Agents SDK, 3 ferramentas somente leitura, RAG com embeddings e `SQLiteSession`. Devolve um laudo tipado. | `:8001` |
 | **Agente 2, Remediação N2** (`agent2/`) | Executa ações privilegiadas (desbloqueio, failover de VPN, incidente com SLA) por **política determinística**. O LLM só redige o resumo. | `:8002` |
 | **n8n** | Orquestra de forma assíncrona: 202 imediato, polling, Supervisor (AI Agent), sub-workflow de SLA, Merge e **Error Workflow**. | `wt8HmLdSFt9VQT51` / `XTwrw7QKUh7netfC` / `BPDzhhNbkyZ4VDoI` |
-| **Chatbot Chainlit** | Gatilho único (webhook) e acompanhamento do ticket | `:8000` |
+| **Chatbot Chainlit** | Gatilho único (webhook), acompanhamento do ticket e painel de demonstração (serviços, hooks, **MCP** e **alertas**) | `:8000` |
 | **Servidor MCP** (`agent1/mcp/`) | Expõe as ferramentas do Agente 1 com contrato Pydantic | stdio / `:8011/mcp` |
 
 | Item pedido no TP5 | Onde está | Seção |
@@ -268,6 +268,10 @@ Error Trigger ─► Montar Alerta (Code) ─► Notificar Discord (#helpdesk-al
 | `notified_channel` | `discord_OK` / `discord_FALHOU (verifique a credencial…)` |
 
 O nó do Discord tem `onError: continueRegularOutput`. Se o Discord estiver fora, o alerta ainda é gravado, com a falha de entrega registrada.
+
+**Entrega real verificada:** com o webhook do canal **#helpdesk-alertas** configurado, o teste RT-06 gerou o alerta `ALR-MWSC6SK9`. A mensagem chegou no Discord com o título "🚨 Falha no pipeline de Helpdesk", o componente (Agente 2, porta 8002), o ticket `TCK-20261122-181548-435`, o erro `connect ECONNREFUSED`, o fallback aplicado e o link da execução 435. A linha em `helpdesk_alerts` ficou com `notified_channel = discord_OK`.
+
+**Consulta pelo chatbot:** o Error Workflow também tem um webhook `GET /webhook/helpdesk-alerts`. Com ele, o chatbot mostra os últimos alertas (botão **"Ver alertas de falha"**). Quando um ticket falha, o chatbot já oferece esse botão na própria conversa.
 
 ### 4.2 Comportamento de fallback
 

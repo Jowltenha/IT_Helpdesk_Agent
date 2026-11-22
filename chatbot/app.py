@@ -36,6 +36,8 @@ except ImportError:
 # andamento em N8N_STATUS_URL enquanto o n8n processa os agentes em segundo plano.
 N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL", "http://localhost:5678/webhook/helpdesk-triage-tp4")
 N8N_STATUS_URL = os.getenv("N8N_STATUS_URL", "http://localhost:5678/webhook/helpdesk-status")
+# TP5: últimos alertas gravados pelo Error Workflow (Data Table helpdesk_alerts)
+N8N_ALERTS_URL = os.getenv("N8N_ALERTS_URL", "http://localhost:5678/webhook/helpdesk-alerts")
 AGENT1_API_URL = os.getenv("AGENT1_API_URL", "http://localhost:8001")
 AGENT2_API_URL = os.getenv("AGENT2_API_URL", "http://localhost:8002")
 LLM_PROXY_URL = os.getenv("OPENAI_BASE_URL", "http://localhost:20128/v1")
@@ -58,7 +60,8 @@ async def check_services() -> str:
         ("Agente 1 — Triagem N1", f"{AGENT1_API_URL}/health", {}, (200,)),
         ("Agente 2 — Remediação N2", f"{AGENT2_API_URL}/health", {}, (200,)),
         # 404 + "not_found" significa que o webhook de produção está ativo (workflow publicado)
-        ("n8n — Workflow TP4 publicado", f"{N8N_STATUS_URL}?ticket_id=verificacao", {}, (200, 404)),
+        ("n8n — Workflow principal publicado", f"{N8N_STATUS_URL}?ticket_id=verificacao", {}, (200, 404)),
+        ("n8n — Error Workflow (alertas) publicado", N8N_ALERTS_URL, {}, (200,)),
         ("9Router — Proxy do LLM (chave do .env)", f"{LLM_PROXY_URL}/models",
          {"Authorization": f"Bearer {api_key}"}, (200,)),
     ]
@@ -137,6 +140,69 @@ def run_hook_tests() -> str:
     )
 
 
+async def fetch_recent_alerts() -> str:
+    """Últimos alertas do Error Workflow (Error Trigger → Discord → Data Table helpdesk_alerts)."""
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.get(N8N_ALERTS_URL)
+    alerts = resp.json().get("alerts", [])
+    if not alerts:
+        return "### 🚨 Alertas do Error Workflow\n\nNenhuma falha registrada até agora. ✅"
+    labels = {"agent1": "Agente 1 (Triagem)", "agent2": "Agente 2 (Remediação)", "n8n": "Orquestrador n8n"}
+    rows = "\n".join(
+        f"| `{a.get('alert_id')}` | {labels.get(a.get('agent'), a.get('agent'))} | `{a.get('ticket_id') or '-'}` | "
+        f"{(a.get('error_message') or '')[:70]} | {'✅ enviado' if a.get('notified_channel') == 'discord_OK' else '⚠️ falhou'} |"
+        for a in alerts
+    )
+    return (
+        "### 🚨 Alertas do Error Workflow (n8n)\n\n"
+        "Quando um agente falha ou não responde, o workflow principal lança *Stop and Error*; o **Error Trigger** "
+        "monta o alerta, notifica o canal **#helpdesk-alertas** no Discord e grava na Data Table `helpdesk_alerts`.\n\n"
+        "| Alerta | Componente que falhou | Ticket | Erro | Discord |\n| :--- | :--- | :--- | :--- | :-: |\n" + rows
+    )
+
+
+async def run_mcp_check() -> str:
+    """Conecta no servidor MCP do Agente 1 (stdio), lista as ferramentas e faz chamadas de exemplo."""
+    from mcp import ClientSession, StdioServerParameters
+    from mcp.client.stdio import stdio_client
+
+    params = StdioServerParameters(command=sys.executable, args=["-m", "agent1.mcp.server"], cwd=PROJECT_ROOT)
+    async with stdio_client(params) as (read, write):
+        async with ClientSession(read, write) as session:
+            info = await session.initialize()
+            tools = (await session.list_tools()).tools
+            tool_rows = "\n".join(
+                f"| `{t.name}` | `{', '.join(t.inputSchema.get('properties', {}).keys())}` | "
+                f"`{t.outputSchema.get('title', '-') if t.outputSchema else '-'}` | {'🔒 sim' if t.annotations and t.annotations.readOnlyHint else 'não'} |"
+                for t in tools
+            )
+            calls = [
+                ("lookup_user_account", {"user_email": "maria.souza@empresa.com"}),
+                ("check_system_status", {"service_name": "vpn"}),
+                ("lookup_user_account", {"user_email": "invasor@gmail.com"}),
+            ]
+            call_rows = []
+            for name, args in calls:
+                res = await session.call_tool(name, args)
+                sc = res.structuredContent or {}
+                summary = sc.get("status")
+                if name == "lookup_user_account" and sc.get("found"):
+                    summary += f" · account_locked={sc.get('account_locked')}"
+                if name == "check_system_status":
+                    summary += f" · {sc.get('service_name')}"
+                call_rows.append(f"| `{name}` | `{json.dumps(args, ensure_ascii=False)}` | {summary} |")
+            bad = await session.call_tool("lookup_user_account", {"user_email": "x"})
+            call_rows.append(f"| `lookup_user_account` | `{{\"user_email\": \"x\"}}` | ❌ rejeitado pelo schema Pydantic (isError={bad.isError}) |")
+    return (
+        f"### 🔌 Servidor MCP do Agente 1 — `{info.serverInfo.name}` (protocolo `{info.protocolVersion}`)\n\n"
+        "Implementado com **FastMCP** (`@mcp.tool()`), schemas **Pydantic** de entrada e saída "
+        "(`agent1/mcp/server.py`). As chamadas passam pelo mesmo hook `PreToolUse` do agente.\n\n"
+        "**Ferramentas expostas (`tools/list`):**\n\n| Ferramenta | Entrada | Saída (Pydantic) | Somente leitura |\n| :--- | :--- | :--- | :-: |\n"
+        f"{tool_rows}\n\n**Chamadas reais (`tools/call`):**\n\n| Ferramenta | Argumentos | Resultado |\n| :--- | :--- | :--- |\n"
+        + "\n".join(call_rows)
+    )
+
+
 def _read_jsonl(path: str) -> list:
     entries = []
     try:
@@ -209,6 +275,8 @@ def panel_actions():
     return [
         cl.Action(name="check_services", label="Verificar serviços", icon="activity", payload={}),
         cl.Action(name="hook_tests", label="Testar hooks de segurança", icon="shield", payload={}),
+        cl.Action(name="mcp_check", label="Testar servidor MCP", icon="plug", payload={}),
+        cl.Action(name="recent_alerts", label="Ver alertas de falha (Error Workflow)", icon="siren", payload={}),
     ]
 
 
@@ -250,7 +318,8 @@ if HAS_CHAINLIT:
             "- *'Não consigo acessar a folha de pagamento, erro 403. E-mail maria.souza@empresa.com. Urgente até 17h.'*\n"
             "- *'A VPN corporativa está caindo constantemente no gateway principal.'*\n"
             "- *'Meu computador desligou e não acende nenhum LED.'*\n\n"
-            "Use os botões abaixo para **verificar os serviços** do pipeline ou **testar os hooks de segurança**.\n\n"
+            "Use os botões abaixo para **verificar os serviços**, **testar os hooks de segurança**, "
+            "**testar o servidor MCP** ou **ver os alertas de falha** do Error Workflow.\n\n"
             f"*ID da Sessão Ativa:* `{session_id}`"
         )
         await cl.Message(content=welcome_message, actions=panel_actions()).send()
@@ -266,6 +335,22 @@ if HAS_CHAINLIT:
         except Exception as ex:
             content = f"❌ Não foi possível executar os hooks: `{ex}`"
         await cl.Message(content=content).send()
+
+    @cl.action_callback("mcp_check")
+    async def on_mcp_check(action: cl.Action):
+        try:
+            content = await run_mcp_check()
+        except Exception as ex:
+            content = f"❌ Falha ao conectar no servidor MCP: `{type(ex).__name__}: {ex}`"
+        await cl.Message(content=content, actions=panel_actions()).send()
+
+    @cl.action_callback("recent_alerts")
+    async def on_recent_alerts(action: cl.Action):
+        try:
+            content = await fetch_recent_alerts()
+        except Exception as ex:
+            content = f"❌ Não foi possível consultar os alertas no n8n: `{ex}`"
+        await cl.Message(content=content, actions=panel_actions()).send()
 
     @cl.action_callback("ticket_status")
     async def on_ticket_status(action: cl.Action):
@@ -322,8 +407,22 @@ if HAS_CHAINLIT:
 
                 final = await poll_n8n_ticket(client, ticket_id, loading_msg)
                 if final.get("status") == "error":
-                    loading_msg.content = f"❌ Erro no processamento do ticket `{ticket_id}`: {final.get('error')}"
+                    loading_msg.content = (
+                        f"❌ **Erro no processamento do ticket `{ticket_id}`**\n\n"
+                        f"`{final.get('error')}`\n\n"
+                        "**Fallback aplicado pelo n8n:** o ticket foi marcado como `error` na Data Table, "
+                        "o Error Workflow foi acionado e a equipe foi avisada no Discord (#helpdesk-alertas)."
+                    )
                     await loading_msg.update()
+                    await cl.Message(
+                        content="O que deseja ver sobre esta falha?",
+                        actions=[
+                            cl.Action(name="recent_alerts", label="Ver alerta gerado (Error Workflow)", icon="siren", payload={}),
+                            cl.Action(name="ticket_status", label="Consultar status no n8n", icon="search",
+                                      payload={"ticket_id": ticket_id, "created_at": "", "completed_at": ""}),
+                            cl.Action(name="check_services", label="Verificar serviços", icon="activity", payload={}),
+                        ],
+                    ).send()
                     return
                 if final.get("status") != "done":
                     loading_msg.content = (

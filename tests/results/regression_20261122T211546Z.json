@@ -1,0 +1,62 @@
+{
+  "executed_at": "20261122T211546Z",
+  "n8n": "http://localhost:5678",
+  "scenarios": [
+    {
+      "id": "RT-06",
+      "name": "Fallback: Agente 2 fora do ar",
+      "input": {
+        "user_prompt": "A VPN cai toda hora no home office. E-mail joao.silva@empresa.com"
+      },
+      "expected": "Agente 1 conclui; o POST para o Agente 2 falha (ECONNREFUSED) após 2 tentativas; o ticket vira status=error/stage=failed com a mensagem; o Error Workflow registra alerta em helpdesk_alerts (agent=agent2) e notifica o Discord.",
+      "ticket_id": "TCK-20261122-181548-435",
+      "elapsed_s": 24.7,
+      "passed": true,
+      "checks": [
+        {
+          "level": "must",
+          "check": "status final = error",
+          "passed": true,
+          "actual": "error"
+        },
+        {
+          "level": "must",
+          "check": "stage = failed",
+          "passed": true,
+          "actual": "failed"
+        },
+        {
+          "level": "must",
+          "check": "mensagem de erro identifica a conexão recusada",
+          "passed": true,
+          "actual": "connect ECONNREFUSED 172.17.0.1:8002"
+        }
+      ],
+      "actual_output": {
+        "ticket_id": "TCK-20261122-181548-435",
+        "status": "error",
+        "stage": "failed",
+        "result": null,
+        "error": "connect ECONNREFUSED 172.17.0.1:8002",
+        "created_at": "2026-11-22T21:15:48.980Z",
+        "completed_at": "2026-11-22T21:16:10.066Z",
+        "_accepted": {
+          "http_status": 202,
+          "body": {
+            "ticket_id": "TCK-20261122-181548-435",
+            "status": "processing",
+            "stage": "received",
+            "message": "Chamado recebido. Os agentes estao processando em segundo plano. Consulte o andamento pelo status_endpoint.",
+            "status_endpoint": "/webhook/helpdesk-status?ticket_id=TCK-20261122-181548-435"
+          }
+        },
+        "_elapsed_s": 24.7
+      }
+    }
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0
+  }
+}

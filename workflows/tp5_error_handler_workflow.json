@@ -181,6 +181,62 @@
           ]
         }
       }
+    },
+    {
+      "id": "d34a03fb-ab23-4c68-a46e-9270ead33537",
+      "name": "Webhook Consulta de Alertas",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        560
+      ],
+      "parameters": {
+        "path": "helpdesk-alerts",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "fedeb2ad-3a24-4717-956d-7cce754865c2"
+    },
+    {
+      "id": "ac09f945-fd8c-4f74-be37-1eeae167f048",
+      "name": "Buscar Ultimos Alertas",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        560
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "bWrulwbX7s5nQxNJ",
+          "cachedResultName": "helpdesk_alerts"
+        },
+        "returnAll": false,
+        "limit": 5,
+        "orderBy": true,
+        "orderByColumn": "createdAt",
+        "orderByDirection": "DESC"
+      }
+    },
+    {
+      "id": "9e49384b-9e65-4049-b42e-a2710efe8270",
+      "name": "Responder Alertas",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        480,
+        560
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ alerts: $input.all().map(i => i.json).filter(a => a.alert_id).map(a => ({ alert_id: a.alert_id, created_at: a.created_at, agent: a.agent, ticket_id: a.ticket_id, failed_node: a.failed_node, error_message: a.error_message, notified_channel: a.notified_channel, execution_id: a.execution_id })) }) }}",
+        "options": {}
+      }
     }
   ],
   "connections": {
@@ -211,6 +267,28 @@
         [
           {
             "node": "Registrar Alerta (helpdesk_alerts)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Consulta de Alertas": {
+      "main": [
+        [
+          {
+            "node": "Buscar Ultimos Alertas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Ultimos Alertas": {
+      "main": [
+        [
+          {
+            "node": "Responder Alertas",
             "type": "main",
             "index": 0
           }
