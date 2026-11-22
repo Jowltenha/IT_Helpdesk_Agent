@@ -1,5 +1,13 @@
 {
   "mcpServers": {
+    "helpdesk-agent1-tools": {
+      "command": ".venv/bin/python",
+      "args": [
+        "-m",
+        "agent1.mcp.server"
+      ],
+      "cwd": "<CAMINHO_DO_REPOSITORIO>"
+    },
     "obsidian": {
       "command": "docker",
       "args": [

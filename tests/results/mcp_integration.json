@@ -1,0 +1,410 @@
+{
+  "executed_at": "2026-11-22T18:54:59.483458+00:00",
+  "raw_client": {
+    "tools": [
+      {
+        "name": "check_system_status",
+        "read_only": true,
+        "input_schema": {
+          "properties": {
+            "service_name": {
+              "description": "Serviço monitorado: vpn, folha, email ou erp (aceita sinônimos como sap, outlook, openvpn).",
+              "maxLength": 40,
+              "minLength": 2,
+              "title": "Service Name",
+              "type": "string"
+            }
+          },
+          "required": [
+            "service_name"
+          ],
+          "title": "mcp_check_system_statusArguments",
+          "type": "object"
+        },
+        "output_schema": {
+          "description": "Saída de check_system_status.",
+          "properties": {
+            "service_key": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Chave canônica do serviço (vpn, folha, email, erp).",
+              "title": "Service Key"
+            },
+            "service_name": {
+              "description": "Nome do serviço consultado.",
+              "title": "Service Name",
+              "type": "string"
+            },
+            "status": {
+              "description": "Status operacional do serviço.",
+              "enum": [
+                "Operational",
+                "Degradado",
+                "Indisponivel",
+                "Manutencao",
+                "Desconhecido",
+                "NEGADO_PELO_HOOK"
+              ],
+              "title": "Status",
+              "type": "string"
+            },
+            "message": {
+              "description": "Detalhes ou mensagem oficial do estado do serviço.",
+              "title": "Message",
+              "type": "string"
+            },
+            "last_updated": {
+              "description": "Timestamp da última verificação (ou N/A).",
+              "title": "Last Updated",
+              "type": "string"
+            },
+            "monitored_services": {
+              "description": "Serviços válidos, devolvidos quando o nome pedido não é reconhecido.",
+              "items": {
+                "type": "string"
+              },
+              "title": "Monitored Services",
+              "type": "array"
+            }
+          },
+          "required": [
+            "service_name",
+            "status",
+            "message",
+            "last_updated"
+          ],
+          "title": "SystemStatus",
+          "type": "object"
+        }
+      },
+      {
+        "name": "lookup_user_account",
+        "read_only": true,
+        "input_schema": {
+          "properties": {
+            "user_email": {
+              "description": "E-mail corporativo terminado em @empresa.com.",
+              "maxLength": 120,
+              "minLength": 6,
+              "title": "User Email",
+              "type": "string"
+            }
+          },
+          "required": [
+            "user_email"
+          ],
+          "title": "mcp_lookup_user_accountArguments",
+          "type": "object"
+        },
+        "output_schema": {
+          "description": "Saída de lookup_user_account.",
+          "properties": {
+            "email": {
+              "description": "E-mail consultado (normalizado).",
+              "title": "Email",
+              "type": "string"
+            },
+            "found": {
+              "description": "True se a conta existe no Active Directory.",
+              "title": "Found",
+              "type": "boolean"
+            },
+            "status": {
+              "description": "Resultado da consulta.",
+              "enum": [
+                "ENCONTRADO",
+                "NAO_ENCONTRADO",
+                "NEGADO_PELO_HOOK"
+              ],
+              "title": "Status",
+              "type": "string"
+            },
+            "name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Nome completo do colaborador.",
+              "title": "Name"
+            },
+            "role": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Cargo ou função.",
+              "title": "Role"
+            },
+            "groups": {
+              "description": "Grupos de acesso do usuário no AD.",
+              "items": {
+                "type": "string"
+              },
+              "title": "Groups",
+              "type": "array"
+            },
+            "account_locked": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "True/False se a conta existe; None quando a consulta não pôde ser feita.",
+              "title": "Account Locked"
+            },
+            "message": {
+              "default": "",
+              "description": "Mensagem explicativa.",
+              "title": "Message",
+              "type": "string"
+            }
+          },
+          "required": [
+            "email",
+            "found",
+            "status"
+          ],
+          "title": "UserAccountResult",
+          "type": "object"
+        }
+      },
+      {
+        "name": "query_troubleshooting_kb",
+        "read_only": true,
+        "input_schema": {
+          "properties": {
+            "query": {
+              "description": "Descrição curta do sintoma, em português.",
+              "maxLength": 300,
+              "minLength": 2,
+              "title": "Query",
+              "type": "string"
+            },
+            "top_k": {
+              "default": 2,
+              "description": "Máximo de artigos retornados.",
+              "maximum": 4,
+              "minimum": 1,
+              "title": "Top K",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "title": "mcp_query_troubleshooting_kbArguments",
+          "type": "object"
+        },
+        "output_schema": {
+          "$defs": {
+            "KnowledgeArticle": {
+              "description": "Artigo da Base de Conhecimento recuperado via RAG.",
+              "properties": {
+                "article_id": {
+                  "description": "Identificador único do artigo (KB-101 a KB-104).",
+                  "title": "Article Id",
+                  "type": "string"
+                },
+                "title": {
+                  "description": "Título do artigo.",
+                  "title": "Title",
+                  "type": "string"
+                },
+                "category": {
+                  "description": "Categoria associada.",
+                  "title": "Category",
+                  "type": "string"
+                },
+                "solution": {
+                  "description": "Procedimento passo a passo para resolução.",
+                  "title": "Solution",
+                  "type": "string"
+                },
+                "relevance_score": {
+                  "description": "Similaridade de cosseno com a consulta.",
+                  "maximum": 1.0,
+                  "minimum": 0.0,
+                  "title": "Relevance Score",
+                  "type": "number"
+                }
+              },
+              "required": [
+                "article_id",
+                "title",
+                "category",
+                "solution",
+                "relevance_score"
+              ],
+              "title": "KnowledgeArticle",
+              "type": "object"
+            }
+          },
+          "description": "Saída de query_troubleshooting_kb.",
+          "properties": {
+            "query": {
+              "description": "Consulta efetivamente executada (após sanitização do hook).",
+              "title": "Query",
+              "type": "string"
+            },
+            "status": {
+              "description": "Resultado da busca.",
+              "enum": [
+                "ENCONTRADO",
+                "SEM_ARTIGO_RELEVANTE",
+                "KB_INDISPONIVEL",
+                "NEGADO_PELO_HOOK"
+              ],
+              "title": "Status",
+              "type": "string"
+            },
+            "articles": {
+              "description": "Artigos acima do limiar de similaridade.",
+              "items": {
+                "$ref": "#/$defs/KnowledgeArticle"
+              },
+              "title": "Articles",
+              "type": "array"
+            },
+            "min_similarity": {
+              "description": "Limiar mínimo de similaridade aplicado.",
+              "title": "Min Similarity",
+              "type": "number"
+            },
+            "message": {
+              "default": "",
+              "description": "Mensagem explicativa.",
+              "title": "Message",
+              "type": "string"
+            }
+          },
+          "required": [
+            "query",
+            "status",
+            "min_similarity"
+          ],
+          "title": "KBSearchResult",
+          "type": "object"
+        }
+      }
+    ],
+    "calls": [
+      {
+        "tool": "check_system_status",
+        "arguments": {
+          "service_name": "sap"
+        },
+        "is_error": false,
+        "validated_output": {
+          "service_key": "erp",
+          "service_name": "ERP SAP Corporativo",
+          "status": "Manutencao",
+          "message": "Janela de manutencao programada para atualizacao de patches ate 14h.",
+          "last_updated": "2026-10-02 08:00:00",
+          "monitored_services": []
+        }
+      },
+      {
+        "tool": "lookup_user_account",
+        "arguments": {
+          "user_email": "maria.souza@empresa.com."
+        },
+        "is_error": false,
+        "validated_output": {
+          "email": "maria.souza@empresa.com",
+          "found": true,
+          "status": "ENCONTRADO",
+          "name": "Maria Souza",
+          "role": "Coordenadora de RH",
+          "groups": [
+            "RH_Gestao",
+            "Folha_Pagamento_Admin",
+            "VPN_Users"
+          ],
+          "account_locked": true,
+          "message": "Conta localizada."
+        }
+      },
+      {
+        "tool": "lookup_user_account",
+        "arguments": {
+          "user_email": "invasor@gmail.com"
+        },
+        "is_error": false,
+        "validated_output": {
+          "email": "invasor@gmail.com",
+          "found": false,
+          "status": "NEGADO_PELO_HOOK",
+          "name": null,
+          "role": null,
+          "groups": [],
+          "account_locked": null,
+          "message": "Bloqueado: e-mail 'invasor@gmail.com' inválido ou fora do domínio corporativo '@empresa.com'. Peça ao colaborador o e-mail corporativo; nao assuma o estado da conta."
+        }
+      },
+      {
+        "tool": "query_troubleshooting_kb",
+        "arguments": {
+          "query": "esqueci minha senha do outlook",
+          "top_k": 1
+        },
+        "is_error": false,
+        "validated_output": {
+          "query": "esqueci minha senha do outlook",
+          "status": "ENCONTRADO",
+          "articles": [
+            {
+              "article_id": "KB-104",
+              "title": "Política de Redefinição de Senha e Desbloqueio de E-mail Corporativo",
+              "category": "Acessos/Senhas",
+              "solution": "Para redefinição de senha do Outlook/Office 365: 1. Acessar o portal de autoatendimento pass.empresa.com. 2. Caso o usuário esteja fora da rede interna, a autenticação via MFA é obrigatória. 3. Desbloqueios manuais de conta exigem confirmação de identidade por telefone.",
+              "relevance_score": 0.735
+            }
+          ],
+          "min_similarity": 0.62,
+          "message": ""
+        }
+      },
+      {
+        "tool": "lookup_user_account",
+        "arguments": {
+          "user_email": "x"
+        },
+        "is_error": true,
+        "error": "Error executing tool lookup_user_account: 1 validation error for mcp_lookup_user_accountArguments\nuser_email\n  String should have at least 6 characters [type=string_too_short, input_value='x', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/string_too_short"
+      }
+    ],
+    "server": {
+      "name": "helpdesk-agent1-tools",
+      "protocol": "2025-11-25"
+    }
+  },
+  "agents_sdk_consumer": {
+    "question": "A conta maria.souza@empresa.com está bloqueada? E a VPN está operacional?",
+    "tools_called": [
+      "lookup_user_account",
+      "check_system_status"
+    ],
+    "answer": "Aqui estão as informações:\n\n- 🔒 **Conta da Maria Souza:** Sim, a conta `maria.souza@empresa.com` está **bloqueada** no Active Directory.\n- ⚠️ **VPN Corporativa:** O serviço está **degradado** — há uma oscilação no gateway principal (OpenVPN), sendo recomendado utilizar o gateway secundário **BR-SA-02**.\n\nDeseja que eu abra um chamado para desbloquear a conta da Maria ou busque um procedimento de troubleshooting para a VPN?"
+  }
+}

@@ -21,7 +21,9 @@ def test_agent2_lifecycle():
     print("🧪 TESTANDO A API DO AGENTE 2 (REMEDIACAO N2 - FASTAPI)")
     print("=========================================================\n")
 
-    client = TestClient(app)
+    # TP5: a API exige X-API-Key quando AGENT2_API_TOKEN está definido no .env
+    from agent2.security import API_TOKEN
+    client = TestClient(app, headers={"X-API-Key": API_TOKEN} if API_TOKEN else {})
 
     # 1. Teste de Health
     print("🔹 Teste 1: GET /health (Agente 2)")
@@ -61,9 +63,11 @@ def test_agent2_lifecycle():
     assert status_data["task_id"] == task_id
     assert status_data["status"] == "done"
     result = status_data["result"]
+    # TP5: maria.souza está bloqueada no AD simulado → desbloqueio real (SUCCESS);
+    # se o teste for repetido no mesmo processo, a conta já está ativa → SKIPPED (idempotente).
     assert result["status"] == "SUCCESS"
-    assert len(result["actions_executed"]) >= 1
-    assert any(a["action_name"] == "unlock_user_account" for a in result["actions_executed"])
+    assert result["planned_actions"] == ["UNLOCK_ACCOUNT"]
+    assert any(a["action_name"] == "unlock_user_account" and a["status"] in ("SUCCESS", "SKIPPED") for a in result["actions_executed"])
     assert len(result["audit_trail"]) >= 1
     print("✅ Sucesso: Conta desbloqueada com codigo de auditoria emitido.")
 
@@ -71,7 +75,7 @@ def test_agent2_lifecycle():
     print("🔹 Teste 4: POST /run - Incidente com Escalonamento Humano e Computacao de SLA")
     payload_escalation = {
         "ticket_id": "TCK-99002-HW",
-        "user_email": "carlos.moraes@empresa.com",
+        "user_email": "carlos.lima@empresa.com",
         "category": "Hardware",
         "severity": "Critica",
         "recommended_action": "Troca de fonte de alimentacao e analise presencial obrigatoria.",
@@ -90,7 +94,13 @@ def test_agent2_lifecycle():
     result_esc = status_esc_data["result"]
     assert result_esc["status"] == "ESCALATED"
     assert result_esc["sla_target_minutes"] == 30  # SLA de Severidade Critica
-    assert result_esc["escalation_team"] is not None
+    assert result_esc["escalation_team"] == "Suporte Presencial N2"
+    assert result_esc["planned_actions"] == ["DISPATCH_INCIDENT"]
+
+    # TP5: contrato estrito — e-mail externo é rejeitado antes de qualquer ação
+    resp_ext = client.post("/run", json={**payload_escalation, "ticket_id": "TCK-EXT", "user_email": "atacante@gmail.com"})
+    assert resp_ext.status_code == 422, resp_ext.text
+    print("✅ E-mail externo rejeitado com 422 (contrato RemediationRequest).")
     print(f"✅ Sucesso: Incidente escalado para {result_esc['escalation_team']} com SLA de {result_esc['sla_target_minutes']} min.")
 
     # 5. Teste de 404

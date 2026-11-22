@@ -39,6 +39,8 @@ N8N_STATUS_URL = os.getenv("N8N_STATUS_URL", "http://localhost:5678/webhook/help
 AGENT1_API_URL = os.getenv("AGENT1_API_URL", "http://localhost:8001")
 AGENT2_API_URL = os.getenv("AGENT2_API_URL", "http://localhost:8002")
 LLM_PROXY_URL = os.getenv("OPENAI_BASE_URL", "http://localhost:20128/v1")
+# TP5: o Agente 1 exige X-API-Key quando AGENT1_API_TOKEN está definido (.env)
+AGENT1_HEADERS = {"X-API-Key": os.getenv("AGENT1_API_TOKEN")} if os.getenv("AGENT1_API_TOKEN") else {}
 POLL_INTERVAL_SECONDS = 3.0
 POLL_MAX_ATTEMPTS = 60  # ~3 minutos
 
@@ -100,7 +102,8 @@ def run_hook_tests() -> str:
         ("E-mail externo (gmail)", "lookup_user_account", {"user_email": "invasor@gmail.com"}, False),
         ("Injeção de comando no e-mail", "lookup_user_account", {"user_email": "maria@empresa.com; rm -rf /"}, False),
         ("Serviço monitorado (vpn)", "check_system_status", {"service_name": "vpn"}, True),
-        ("Serviço desconhecido", "check_system_status", {"service_name": "servidor-desconhecido"}, False),
+        ("Injeção no nome do serviço", "check_system_status", {"service_name": "vpn; cat /etc/passwd"}, False),
+        ("Ferramenta fora da política", "delete_user", {"user_email": "maria.souza@empresa.com"}, False),
     ]
     pre_rows, passed = [], 0
     for name, tool, args, expected in pre_cases:
@@ -359,6 +362,7 @@ if HAS_CHAINLIT:
                 try:
                     run_resp = await client.post(
                         f"{AGENT1_API_URL}/run",
+                        headers=AGENT1_HEADERS,
                         json={
                             "user_prompt": user_prompt,
                             "session_id": session_id
@@ -369,7 +373,7 @@ if HAS_CHAINLIT:
                         # Polling assíncrono em /status/{task_id}
                         for _ in range(15):
                             await asyncio.sleep(1.0)
-                            status_resp = await client.get(f"{AGENT1_API_URL}/status/{task_id}")
+                            status_resp = await client.get(f"{AGENT1_API_URL}/status/{task_id}", headers=AGENT1_HEADERS)
                             if status_resp.status_code == 200:
                                 status_data = status_resp.json()
                                 if status_data.get("status") == "done":

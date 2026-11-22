@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/partial-claude-code-settings.json",
   "name": "Agent 2 - N2 Remediation & ITSM Dispatch Security Policy",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Especificação formal de permissões e hooks para o Agente 2 (Auto-Remediação N2)",
   "permissions": {
     "allow": [
@@ -9,24 +9,30 @@
       "Bash:python3 agent2/test_agent2_api.py",
       "Bash:python3 agent2/hooks/test_hook.py",
       "Read:agent2/**",
-      "Read:agent2/execution_log.json",
+      "Read:agent2/execution_log.jsonl",
       "Read:agent2/hooks/security_audit.log",
-      "Write:agent2/execution_log.json",
-      "Write:agent2/hooks/security_audit.log"
+      "Write:agent2/execution_log.jsonl",
+      "Write:agent2/hooks/security_audit.log",
+      "Bash:python -m pytest agent2/test_agent2_unit.py"
     ],
     "deny": [
       "Bash:rm -rf *",
       "Bash:git push --force*",
-      "Bash:rm -rf agent2/execution_log.json",
+      "Bash:rm -rf agent2/execution_log.jsonl",
       "Bash:rm -rf agent2/hooks/security_audit.log",
       "Bash:userdel *",
-      "Write:/etc/*"
+      "Write:/etc/*",
+      "Read:.env",
+      "Bash:cat .env*",
+      "Write:agent2/hooks/post_tool_auditor.py"
     ],
     "ask": [
       "Bash:uvicorn agent2.app:app *",
       "Write:agent2/models.py",
       "Write:agent2/app.py",
-      "Write:agent2/runner.py"
+      "Write:agent2/runner.py",
+      "Write:agent2/tools.py",
+      "Write:agent2/security.py"
     ]
   },
   "hooks": {
@@ -43,6 +49,8 @@
     "agent_role": "N2_Remediation_Operator",
     "data_classification": "Confidential_Privileged",
     "audit_trail_required": true,
-    "human_in_the_loop_for_bulk_operations": true
+    "human_in_the_loop_for_bulk_operations": true,
+    "decision_policy": "plan_actions() deterministica; LLM apenas redige resolution_summary",
+    "api_auth": "X-API-Key (AGENT2_API_TOKEN)"
   }
 }

@@ -1,0 +1,232 @@
+{
+  "id": "XTwrw7QKUh7netfC",
+  "name": "TP5 - Error Handler: Alertas do Helpdesk",
+  "nodes": [
+    {
+      "id": "6bab1c33-bb4c-4c0f-9047-962a3dcaf0b4",
+      "name": "Error Trigger (falha em qualquer workflow do Helpdesk)",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "a6056393-4146-421f-808e-38d9ec94f985",
+      "name": "Montar Alerta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const e = $input.first().json;\nconst exec = e.execution || {};\nconst wf = e.workflow || {};\nconst err = exec.error || e.trigger?.error || {};\n// Stop and Error guarda a mensagem detalhada em messages[0]; 'message' tem o resumo do n8n\nconst detail = (Array.isArray(err.messages) && err.messages[0]) || err.description || '';\nconst message = String(detail || err.message || 'Erro sem mensagem');\nconst failedNode = exec.lastNodeExecuted || err.node?.name || 'desconhecido';\nconst m = message.match(/ticket=(\\S+)/);\nconst a = message.match(/agent=(agent[12])/);\nlet agent = a ? a[1] : 'n8n';\nif (!a && /Agente 1/i.test(failedNode)) agent = 'agent1';\nif (!a && /Agente 2/i.test(failedNode)) agent = 'agent2';\nconst agentLabel = { agent1: 'Agente 1 (Triagem N1 - porta 8001)', agent2: 'Agente 2 (Remediacao N2 - porta 8002)', n8n: 'Orquestrador n8n' }[agent];\nconst alertId = 'ALR-' + Date.now().toString(36).toUpperCase();\nconst cleanMsg = message.replace(/^AGENT_FAILURE agent=\\S+ ticket=\\S+ \\| /, '');\nconst lines = [\n  ':rotating_light: **Falha no pipeline de Helpdesk**',\n  '**Alerta:** ' + alertId,\n  '**Componente:** ' + agentLabel,\n  '**Workflow:** ' + (wf.name || '-') + ' (exec ' + (exec.id || '-') + ')',\n  '**No que falhou:** ' + failedNode,\n  '**Ticket:** ' + (m ? m[1] : '-'),\n  '**Erro:** ' + cleanMsg.slice(0, 900),\n  '**Fallback aplicado:** ticket marcado como status=error na Data Table; o chatbot exibe a falha ao usuario.',\n  exec.url ? '**Execucao:** ' + exec.url : ''\n].filter(Boolean);\nreturn [{ json: {\n  alert_id: alertId,\n  created_at: new Date().toISOString(),\n  source: exec.mode || 'trigger',\n  workflow_name: wf.name || '',\n  execution_id: String(exec.id || ''),\n  failed_node: failedNode,\n  agent,\n  ticket_id: m ? m[1] : '',\n  error_message: cleanMsg.slice(0, 1500),\n  discord_content: lines.join('\\n').slice(0, 1990)\n} }];"
+      }
+    },
+    {
+      "id": "29c64ce2-7945-4cc9-8d98-57b48f308218",
+      "name": "Notificar Discord (#helpdesk-alertas)",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        480,
+        300
+      ],
+      "parameters": {
+        "authentication": "webhook",
+        "operation": "sendLegacy",
+        "content": "={{ $json.discord_content }}",
+        "options": {
+          "username": "Helpdesk n8n - Alertas"
+        }
+      },
+      "credentials": {
+        "discordWebhookApi": {
+          "id": "hdDiscordAlert01",
+          "name": "Helpdesk Alertas - Discord Webhook"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "webhookId": "f8170a5a-194b-47ca-a9ce-2e5044fc4d0f"
+    },
+    {
+      "id": "9ca38ed1-4cd9-4e7d-9f90-e9d638c605fb",
+      "name": "Registrar Alerta (helpdesk_alerts)",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        300
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "bWrulwbX7s5nQxNJ",
+          "cachedResultName": "helpdesk_alerts"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "alert_id": "={{ $('Montar Alerta').first().json.alert_id }}",
+            "created_at": "={{ $('Montar Alerta').first().json.created_at }}",
+            "source": "={{ $('Montar Alerta').first().json.source }}",
+            "workflow_name": "={{ $('Montar Alerta').first().json.workflow_name }}",
+            "execution_id": "={{ $('Montar Alerta').first().json.execution_id }}",
+            "failed_node": "={{ $('Montar Alerta').first().json.failed_node }}",
+            "agent": "={{ $('Montar Alerta').first().json.agent }}",
+            "ticket_id": "={{ $('Montar Alerta').first().json.ticket_id }}",
+            "error_message": "={{ $('Montar Alerta').first().json.error_message }}",
+            "notified_channel": "={{ ($json.error !== undefined) ? 'discord_FALHOU (verifique a credencial Helpdesk Alertas - Discord Webhook)' : 'discord_OK' }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "alert_id",
+              "displayName": "alert_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "source",
+              "displayName": "source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "workflow_name",
+              "displayName": "workflow_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "execution_id",
+              "displayName": "execution_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "failed_node",
+              "displayName": "failed_node",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "agent",
+              "displayName": "agent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ticket_id",
+              "displayName": "ticket_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "error_message",
+              "displayName": "error_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "notified_channel",
+              "displayName": "notified_channel",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Error Trigger (falha em qualquer workflow do Helpdesk)": {
+      "main": [
+        [
+          {
+            "node": "Montar Alerta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar Alerta": {
+      "main": [
+        [
+          {
+            "node": "Notificar Discord (#helpdesk-alertas)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notificar Discord (#helpdesk-alertas)": {
+      "main": [
+        [
+          {
+            "node": "Registrar Alerta (helpdesk_alerts)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true
+  },
+  "pinData": null,
+  "meta": {
+    "aiBuilderAssisted": true,
+    "builderVariant": "mcp"
+  },
+  "tags": [],
+  "description": "TP5 - Error Trigger: recebe falhas do workflow principal (Agente 1, Agente 2 ou n8n), notifica o Discord e grava o alerta na Data Table helpdesk_alerts."
+}

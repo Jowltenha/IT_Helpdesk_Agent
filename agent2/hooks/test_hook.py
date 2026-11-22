@@ -3,18 +3,21 @@ Script de teste automatizado para o Hook PostToolUse do Agente 2.
 Comprova a injeção do hash de compliance SHA-256 e o registro em security_audit.log.
 """
 import os
+import sys
 import json
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from agent2.hooks.post_tool_auditor import post_tool_use_hook, AUDIT_LOG_PATH
 
 
 def run_tests():
     print("=== EXECUTANDO TESTES DO HOOK POSTTOOLUSE (AGENTE 2) ===")
 
+    # TP5: security_audit.log é append-only (settings.json nega removê-lo); não apagamos mais.
+    lines_before = 0
     if os.path.exists(AUDIT_LOG_PATH):
-        try:
-            os.remove(AUDIT_LOG_PATH)
-        except Exception:
-            pass
+        with open(AUDIT_LOG_PATH, "r", encoding="utf-8") as f:
+            lines_before = sum(1 for _ in f)
 
     test_actions = [
         {
@@ -49,8 +52,9 @@ def run_tests():
     with open(AUDIT_LOG_PATH, "r", encoding="utf-8") as f:
         lines = f.readlines()
 
-    assert len(lines) == len(test_actions), f"Esperado {len(test_actions)} registros, encontrado {len(lines)}"
-    print(f"\nTotal de eventos criptografados registrados: {len(lines)}")
+    new_lines = len(lines) - lines_before
+    assert new_lines == len(test_actions), f"Esperado {len(test_actions)} novos registros, encontrado {new_lines}"
+    print(f"\nNovos eventos criptografados registrados: {new_lines}")
     print("🎉 TODOS OS TESTES DO HOOK POSTTOOLUSE FORAM APROVADOS!")
 
 

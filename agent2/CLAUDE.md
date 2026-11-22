@@ -1,158 +1,70 @@
-# CLAUDE.md - Agent 2: Agente de Auto-Remediação e Despacho N2 (TP4)
+# CLAUDE.md: Agente 2, Auto-Remediação e Despacho N2 (estado final, TP5)
 
-## 📌 Context Engineering Strategy: Inverted Pyramid & Formal Governance
-Este arquivo aplica a estratégia de **Inverted Pyramid (Pirâmide Invertida) combinada com Formal Governance & Guardrails**. A informação é disposta do mais urgente e operacional para as especificações técnicas, servindo como a **fonte única da verdade** do **Agente 2**:
-1. **Top-Level Directives (Diretrizes Operacionais Críticas):** Ações imediatas, limites de atuação e regras de segurança.
-2. **API & Endpoints Contract (Contrato HTTP Assíncrono):** Especificação dos endpoints REST `POST /run` e `GET /status/{task_id}` na porta 8002.
-3. **Tool Execution Protocol & Hooks (Ferramentas e PostToolUse):** Invocação de remediação e injeção de compliance criptográfico SHA-256.
-4. **Skills, Subagentes e Permissões (Especificação Formal TP4):** Regras do `settings.json`, skill `SKILL.md` e subagente `sla-compliance-auditor`.
-5. **Mapeamento de Requisitos e Rastreabilidade:** Tabela comparativa entre os requisitos do projeto e as entregas implementadas.
+> 🔗 **Repositório GitHub:** https://github.com/Jowltenha/IT_Helpdesk_Agent
+>
+> Contexto para o Claude Code quando ele trabalha **dentro de `agent2/`**. Estratégia: **Inverted Pyramid + Constraint Anchoring**: primeiro o que nunca pode quebrar, depois os detalhes.
+> Contratos formais: [`AGENTS.md`](AGENTS.md) · [`TASK.md`](TASK.md) · [`TOOLS.md`](TOOLS.md).
 
 ---
 
-## 🎯 1. Top-Level Directives (Diretrizes Operacionais Críticas)
+## 1. Âncoras de restrição (ler antes de qualquer mudança)
 
-O **Agent 2** é um microserviço autônomo especializado em **Resolução Técnica Automatizada e Despacho de Incidentes N2/N3**.
-- **Missão Exclusiva:**
-  - Receber chamados já previamente triados pelo Agente 1 (via n8n) em formato JSON estruturado (`RemediationRequest`).
-  - Executar ações diretas no ambiente através de ferramentas Python:
-    1. Desbloqueio imediato de contas corporativas no Active Directory (`unlock_user_account`).
-    2. Provisionamento de rotas de failover para usuários em gateways de VPN instáveis (`configure_vpn_failover_route`).
-    3. Criação e despacho de incidentes no sistema ITSM com cálculo rigoroso de SLA operacional (`dispatch_sla_incident`).
-  - Interceptar cada execução com o hook `PostToolUse` (`hooks/post_tool_auditor.py`) para gerar hash criptográfico imutável (`compliance_hash: SEC-XXXX`).
-  - Gerar trilha de auditoria completa (`audit_trail`) e saída tipada com `RemediationResponse`.
-- **Restrições Críticas e Guardrails:**
-  - O Agent 2 **NUNCA** processa linguagem natural bruta; ele exige dados de entrada estruturados via `RemediationRequest`.
-  - O Agent 2 **NÃO** chama e nem se comunica diretamente com o Agent 1. Toda a orquestração é mediada pelo **n8n**.
-  - Todas as ações emitem código de rastreabilidade único (ex: `AUDIT-AD-XXXX`, `VPN-FAILOVER-XXXX`, `INC-YYYYMM-XXXX`).
+1. **O Agente 2 executa ações privilegiadas.** Quem decide é código determinístico (`runner.py::plan_actions`), **nunca** o LLM e **nunca** o texto livre `recommended_action`.
+2. **O LLM só redige `resolution_summary`.** Não deixe o modelo escrever `status`, `sla_target_minutes`, `escalation_team` ou `actions_executed`. No TP4 ele inventava SLA de 15 min e equipes como "SOC-TIER2-SECURITY-FORENSICS".
+3. **`requires_human_escalation=true` ⇒ só `DISPATCH_INCIDENT`.** Não desbloqueie conta quando a triagem pediu um humano (ex.: KB-104, confirmação de identidade por telefone).
+4. **Somente `@empresa.com`.** O contrato (`RemediationRequest`) rejeita com `422`, e as ferramentas recusam de novo com `BLOCKED`. Mantenha as duas camadas.
+5. **Recusa explícita, nunca sucesso falso.** Conta inexistente → `FAILED`; conta já ativa → `SKIPPED`. Não reintroduza o "desbloqueio de contingência".
+6. **Toda ferramenta passa pelo hook `PostToolUse`** (hash SHA-256 + `security_audit.log`). Os logs de auditoria são append-only: não apague nem reescreva.
+7. **Não conhece o Agente 1.** A integração é do n8n.
 
----
-
-## 📁 2. Estrutura e Hierarquia de Arquivos do Agente 2
+## 2. Estrutura
 
 ```
 agent2/
-├── app.py                      # FastAPI: endpoints assíncronos POST /run, GET /status/{task_id}, GET /health (Porta 8002)
-├── runner.py                   # RemediationAgentRunner assíncrono com gravação real de logs
-├── models.py                   # Modelos Pydantic v2: RemediationRequest, RemediationResponse, TaskStatus
-├── tools.py                    # Ferramentas Python de remediação (@function_tool) com hook PostToolUse
-├── settings.json               # Especificação formal de permissões (allow, deny, ask) e governança
-├── SKILL.md                    # Skill reutilizável de Governança: sla-incident-dispatch
-├── hooks/
-│   ├── post_tool_auditor.py    # Hook PostToolUse: gera hash SHA-256 e injeta compliance em security_audit.log
-│   ├── test_hook.py            # Testes automatizados do hook
-│   └── security_audit.log      # Trilha de auditoria gerada pelo hook
-├── subagents/
-│   └── sla_auditor.md          # Subagente com isolamento de contexto para auditoria e governança de SLA
-├── test_agent2_api.py          # Suíte de testes HTTP automatizados
-├── execution_log.json          # Registro real de execuções (sem mocks pré-fabricados)
-├── AGENTS.md                   # Catálogo formal de contratos do Agente 2
-└── CLAUDE.md                   # Fonte única de verdade e diretrizes técnicas do Agente 2
+├── app.py            # FastAPI :8002 — POST /run (202), GET /status/{id}, GET /health; X-API-Key; timeout por tarefa
+├── runner.py         # plan_actions() + execução das tools + _summarize() (LLM redator) + execution_log.jsonl (append-only)
+├── models.py         # RemediationRequest estrito (Literal, e-mail corporativo), RemediationAction, RemediationResponse
+├── tools.py          # unlock_user_account, configure_vpn_failover_route, dispatch_sla_incident (+ SLA_MATRIX_MINUTES)
+├── security.py       # require_api_key (AGENT2_API_TOKEN)
+├── hooks/post_tool_auditor.py   # PostToolUse: compliance_hash + hooks/security_audit.log
+├── test_agent2_unit.py          # 26 testes offline (pytest)
+├── test_agent2_api.py           # ciclo HTTP
+├── settings.json · SKILL.md · subagents/sla_auditor.md
+└── AGENTS.md · TASK.md · TOOLS.md · CLAUDE.md
 ```
 
----
+## 3. Regras de código
 
-## 🌐 3. API & Endpoints Contract (Porta 8002)
+- **Nova ação?** Na ordem: adicione o valor ao `ActionType`, a regra em `plan_actions()` com teste, a ferramenta com hook e recusa explícita, a linha em `TOOLS.md` e o caso em `tests/run_regression.py`.
+- **Matriz de SLA** (`SLA_MATRIX_MINUTES`): Critica 30 · Alta 120 · Media 480 · Baixa 1440. Precisa ser **igual** à do sub-workflow n8n (`Calcular SLA e Equipe`). Se mudar uma, mude a outra.
+- **Normalização:** severidade e categoria sem acento (`Média`→`Media`). E-mail em minúsculas e sem pontuação final.
+- **Prompt do redator** (`AGENT2_SYSTEM_PROMPT`, `v3-tp5`): só fatos do bloco DADOS; ações `BLOCKED`/`FAILED`/`SKIPPED` são descritas como não executadas. Ao mudar, incremente `PROMPT_VERSION`.
+- **Segredos:** `.env` da raiz (`AGENT2_API_TOKEN`). Nunca leia nem imprima.
 
-O Agent 2 roda de forma independente na porta **8002** via FastAPI:
+## 4. Comandos
 
-### 1. `POST /run` (Status: `202 Accepted`)
-- **Descrição:** Registra o pedido de remediação e inicia processamento em background sem travar o cliente HTTP.
-- **Payload de Entrada (`RemediationRequest`):**
-  ```json
-  {
-    "ticket_id": "TCK-40301-BR",
-    "user_email": "maria.souza@empresa.com",
-    "category": "Acessos/Senhas",
-    "severity": "Alta",
-    "recommended_action": "Solicitar desbloqueio da conta no Active Directory.",
-    "requires_human_escalation": false,
-    "action_type": "UNLOCK_ACCOUNT"
-  }
-  ```
-- **Resposta Imediata (`TaskInitiatedResponse`):**
-  ```json
-  {
-    "task_id": "rem_task_1a2b3c4d5e6f",
-    "status": "pending",
-    "message": "Operação de remediação registrada com sucesso. Execução iniciada em background."
-  }
-  ```
+```bash
+source .venv/bin/activate
+uvicorn agent2.app:app --host 0.0.0.0 --port 8002
+python -m pytest agent2/test_agent2_unit.py -q           # 26 testes offline
+python tests/run_regression.py --with-outage             # inclui RT-06 (Agente 2 fora do ar)
+```
 
-### 2. `GET /status/{task_id}`
-- **Estados Possíveis:** `pending`, `done`, `error`.
-- **Resposta Concluída (`TaskStatusResponse` contendo `RemediationResponse`):**
-  ```json
-  {
-    "task_id": "rem_task_1a2b3c4d5e6f",
-    "status": "done",
-    "created_at": "2026-11-12T10:00:00Z",
-    "completed_at": "2026-11-12T10:00:02Z",
-    "result": {
-      "remediation_id": "REM-4A82F19E",
-      "ticket_id": "TCK-40301-BR",
-      "status": "SUCCESS",
-      "actions_executed": [
-        {
-          "action_name": "unlock_user_account",
-          "target": "maria.souza@empresa.com",
-          "status": "SUCCESS",
-          "message": "Conta de Maria Souza desbloqueada com sucesso no Active Directory.",
-          "timestamp": "2026-11-12T10:00:01Z"
-        }
-      ],
-      "sla_target_minutes": 15,
-      "audit_trail": [
-        "AD_UNLOCK: AUDIT-AD-7B91C2 - maria.souza@empresa.com"
-      ],
-      "resolution_summary": "Conta corporativa maria.souza@empresa.com desbloqueada e ativa no Active Directory.",
-      "escalation_team": null
-    },
-    "error": null
-  }
-  ```
+## 5. Histórico de mudanças relevantes (TP5)
 
----
+| Mudança | Comportamento observado que motivou (logs reais) |
+| :--- | :--- |
+| `plan_actions()` determinística no lugar de substrings no texto | 7/7 execuções do TP4 desbloquearam a conta mesmo com escalonamento; "rede" em "**rede**finição" mandava para N2 Infraestrutura (4/7) |
+| LLM restrito ao resumo | SLA de 15 min (fora da matriz) e equipes inventadas pelo LLM |
+| `RemediationRequest` estrito | `atacante@gmail.com` gerava `unlock: SUCCESS`; "Média" gerava SLA de 240 min |
+| `unlock_user_account` com `FAILED`/`SKIPPED` | Conta inexistente e `maria.souza@empresa.com.` recebiam "desbloqueio de contingência" com `SUCCESS` |
+| `user_email` opcional + fallback para dispatch | Sem e-mail, o n8n enviava `nao.informado@empresa.com` |
+| X-API-Key + timeout | API aberta a qualquer cliente na rede; tarefa podia ficar `pending` indefinidamente |
+| **Rodada 2 (revisão do Claude Code nesta pasta):** matriz `action_type × category` | O Supervisor podia pedir `UNLOCK_ACCOUNT` para Hardware |
+| Fallback: ação automática `FAILED`/`BLOCKED` → incidente | Conta inexistente terminava `REJECTED` sem dono (chamado órfão) |
+| Idempotência por `ticket_id` (API e ITSM) | O `retryOnFail` do n8n poderia duplicar o incidente `INC-` |
+| VPN valida conta no AD; `ticket_id` e `audit_code` em toda auditoria | `nao.existe@empresa.com` receberia rota com `SUCCESS` |
+| Redator v3 sem o texto do Agente 1 e com nomes literais | O resumo repetia alegações não verificadas ("grupo já atribuído") e dizia "resolvido" |
+| Log `execution_log.jsonl` append-only | O JSON era reescrito a cada execução (contradizia a âncora 6) |
 
-## 🛠️ 4. Protocolo de Ferramentas e Hook `PostToolUse`
-
-1. `unlock_user_account(user_email: str, reason: str) -> str`: Altera `account_locked = False`, zera tentativas inválidas e emite código de auditoria.
-2. `configure_vpn_failover_route(user_email: str, gateway: str) -> str`: Roteia para o gateway de contingência `BR-SA-02` e emite token de sessão.
-3. `dispatch_sla_incident(ticket_id: str, severity: str, team: str, justification: str) -> str`: Cadastra incidente no ITSM e computa a meta de SLA.
-4. **Hook `PostToolUse` (`hooks/post_tool_auditor.py`):**
-   - Intercepta os retornos das ferramentas de remediação.
-   - Computa o hash de integridade SHA-256 (`compliance_hash: SEC-XXXX`).
-   - Grava a trilha imutável no arquivo `hooks/security_audit.log`.
-
----
-
-## 🛡️ 5. Governança, Permissões, Skill e Subagente
-
-### 1. Políticas de Permissão (`settings.json`):
-- **`allow`:** Execução de testes de API (`test_agent2_api.py`), testes de hook (`test_hook.py`) e leitura de logs.
-- **`deny`:** Remoção de logs de auditoria (`rm execution_log.json`, `rm security_audit.log`) e comandos destrutivos no sistema.
-- **`ask`:** Desbloqueio em massa de contas corporativas ou modificação de arquivos de endpoints da API.
-
-### 2. Skill Reutilizável (`SKILL.md`):
-- **Nome:** `sla-incident-dispatch`.
-- Define a matriz corporativa de SLA e o procedimento de escalonamento técnico N2/N3.
-
-### 3. Subagente Especialista (`subagents/sla_auditor.md`):
-- **Nome:** `sla-compliance-auditor` | **Modelo:** `ag/claude-sonnet-4-6`.
-- **Ferramentas:** `dispatch_sla_incident`.
-- **Justificativa de Isolamento:** Separa a governança e conformidade SOX/LGPD das operações físicas de rede e credenciais, assegurando auditoria limpa e sem interferência de estados transitórios de execução técnica.
-
----
-
-## 📊 6. Mapeamento de Requisitos e Rastreabilidade
-
-| Requisito do Projeto | Componente / Implementação | Estado Atual no TP4 |
-| :--- | :--- | :---: |
-| **Dois Agentes Desacoplados** | `agent2/` independente do `agent1/` na porta 8002 | ✅ Concluído |
-| **Auto-Remediação Automatizada** | Desbloqueio AD, rota VPN redundante e despacho SLA | ✅ Concluído |
-| **API REST Assíncrona** | `POST /run` (202) e `GET /status/{task_id}` com BackgroundTasks | ✅ Concluído |
-| **Especificação de Permissões** | `agent2/settings.json` com regras `allow`, `deny` e `ask` | ✅ Concluído |
-| **Hook PostToolUse de Segurança** | `hooks/post_tool_auditor.py` com hash SHA-256 imutável | ✅ Concluído |
-| **Skills Reutilizáveis** | `agent2/SKILL.md` (`sla-incident-dispatch`) | ✅ Concluído |
-| **Subagentes com Isolamento** | `agent2/subagents/sla_auditor.md` com justificativa formal | ✅ Concluído |
-| **Orquestração n8n e Sub-workflow** | Integrado via `Execute Workflow` e `Merge` no n8n | ✅ Concluído |
+Detalhes e evidências: [`relatorios/RELATORIO_TECNICO_TP5.md`](../relatorios/RELATORIO_TECNICO_TP5.md) §1.2.

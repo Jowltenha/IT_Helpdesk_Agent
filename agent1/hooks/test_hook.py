@@ -3,19 +3,22 @@ Script de teste automatizado para o Hook PreToolUse do Agente 1.
 Verifica o comportamento esperado com casos de aprovação e bloqueio.
 """
 import os
+import sys
 import json
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from agent1.hooks.pre_tool_validator import pre_tool_use_hook, AUDIT_LOG_PATH
 
 
 def run_tests():
     print("=== EXECUTANDO TESTES DO HOOK PRETOOLUSE (AGENTE 1) ===")
 
-    # Limpa log anterior para o teste se existir
+    # TP5: o log de auditoria é append-only — o teste NÃO apaga mais o arquivo;
+    # conta quantas linhas existiam antes e verifica as novas.
+    lines_before = 0
     if os.path.exists(AUDIT_LOG_PATH):
-        try:
-            os.remove(AUDIT_LOG_PATH)
-        except Exception:
-            pass
+        with open(AUDIT_LOG_PATH, "r", encoding="utf-8") as f:
+            lines_before = sum(1 for _ in f)
 
     test_cases = [
         {
@@ -43,9 +46,15 @@ def run_tests():
             "expected_allowed": True
         },
         {
-            "name": "Bloqueio de serviço desconhecido ou malicioso",
+            "name": "Bloqueio de nome de serviço com injeção de comando",
             "tool": "check_system_status",
-            "args": {"service_name": "servidor_secreto_xpto"},
+            "args": {"service_name": "vpn; cat /etc/passwd"},
+            "expected_allowed": False
+        },
+        {
+            "name": "Bloqueio de ferramenta fora da política",
+            "tool": "delete_user",
+            "args": {"user_email": "maria.souza@empresa.com"},
             "expected_allowed": False
         },
         {
@@ -76,8 +85,9 @@ def run_tests():
     assert os.path.exists(AUDIT_LOG_PATH), "Arquivo de auditoria do hook não foi gerado!"
     with open(AUDIT_LOG_PATH, "r", encoding="utf-8") as f:
         log_lines = f.readlines()
-    print(f"\nTotal de eventos registrados em hook_audit.log: {len(log_lines)}")
-    assert len(log_lines) == len(test_cases), f"Esperado {len(test_cases)} registros no log, obtido {len(log_lines)}"
+    new_lines = len(log_lines) - lines_before
+    print(f"\nNovos eventos registrados em hook_audit.log: {new_lines}")
+    assert new_lines == len(test_cases), f"Esperado {len(test_cases)} novos registros no log, obtido {new_lines}"
 
     if all_passed:
         print("\n🎉 TODOS OS TESTES DO HOOK PRETOOLUSE FORAM APROVADOS!")

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/partial-claude-code-settings.json",
   "name": "Agent 1 - N1 Triage Security Policy & Permissions",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Especificação formal de permissões e hooks para o Agente 1 (Triagem N1)",
   "permissions": {
     "allow": [
@@ -9,10 +9,14 @@
       "Bash:python3 agent1/test_agent1_api.py",
       "Bash:python3 agent1/hooks/test_hook.py",
       "Read:agent1/**",
-      "Read:agent1/execution_log.json",
+      "Read:agent1/execution_log.jsonl",
       "Read:agent1/hooks/hook_audit.log",
-      "Write:agent1/execution_log.json",
-      "Write:agent1/hooks/hook_audit.log"
+      "Write:agent1/execution_log.jsonl",
+      "Write:agent1/hooks/hook_audit.log",
+      "Bash:python -m pytest agent1/test_agent1_unit.py",
+      "Bash:python -m agent1.mcp.server",
+      "Bash:python -m agent1.mcp.client_demo",
+      "Read:agent1/mcp/**"
     ],
     "deny": [
       "Bash:rm -rf *",
@@ -21,14 +25,20 @@
       "Bash:rm -rf agent1/agent1_sessions.db",
       "Bash:curl -X DELETE *",
       "Write:/etc/*",
-      "Write:/var/*"
+      "Write:/var/*",
+      "Read:.env",
+      "Bash:cat .env*",
+      "Write:agent1/hooks/pre_tool_validator.py"
     ],
     "ask": [
       "Bash:sqlite3 agent1/agent1_sessions.db *",
       "Bash:uvicorn agent1.app:app *",
       "Write:agent1/models.py",
       "Write:agent1/app.py",
-      "Write:agent1/runner.py"
+      "Write:agent1/runner.py",
+      "Write:agent1/mcp/server.py",
+      "Write:agent1/tools.py",
+      "Write:agent1/security.py"
     ]
   },
   "hooks": {
@@ -45,6 +55,17 @@
     "agent_role": "N1_Triage_Read_Only",
     "data_classification": "Internal_Restricted",
     "audit_trail_required": true,
-    "human_in_the_loop_for_destructive": true
+    "human_in_the_loop_for_destructive": true,
+    "input_guardrail": "detect_prompt_injection (runner.py) -> security_flags + escalonamento forçado",
+    "api_auth": "X-API-Key (AGENT1_API_TOKEN)"
+  },
+  "mcp": {
+    "server": "helpdesk-agent1-tools",
+    "module": "agent1.mcp.server",
+    "transport": [
+      "stdio",
+      "streamable-http"
+    ],
+    "tools_read_only": true
   }
 }

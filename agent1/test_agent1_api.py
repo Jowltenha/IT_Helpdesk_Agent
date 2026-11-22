@@ -11,7 +11,10 @@ import json
 import time
 
 # Adiciona o diretorio raiz ao PYTHONPATH
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+# Remove a pasta agent1/ do path (a subpasta agent1/mcp sombrearia a biblioteca `mcp`)
+_HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path = [p for p in sys.path if os.path.abspath(p or ".") != _HERE]
+sys.path.insert(0, os.path.abspath(os.path.join(_HERE, "..")))
 
 from fastapi.testclient import TestClient
 from agent1.app import app, TASKS_DB
@@ -22,7 +25,9 @@ def test_agent1_lifecycle():
     print("🧪 TESTANDO A API DO AGENTE 1 (TRIAGEM N1 - FASTAPI)")
     print("=========================================================\n")
 
-    client = TestClient(app)
+    # TP5: a API exige X-API-Key quando AGENT1_API_TOKEN está definido no .env
+    from agent1.security import API_TOKEN
+    client = TestClient(app, headers={"X-API-Key": API_TOKEN} if API_TOKEN else {})
 
     # 1. Teste de Health
     print("🔹 Teste 1: GET /health")

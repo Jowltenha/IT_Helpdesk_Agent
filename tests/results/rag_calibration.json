@@ -1,0 +1,88 @@
+{
+  "embedding_model": "gemini-embedding-001",
+  "dimensions": 1536,
+  "relevant": [
+    {
+      "query": "vpn caindo home office",
+      "expected": "KB-102",
+      "top1": "KB-102",
+      "score": 0.643,
+      "correct": true
+    },
+    {
+      "query": "A VPN corporativa cai a cada 5 minutos desde cedo",
+      "expected": "KB-102",
+      "top1": "KB-102",
+      "score": 0.723,
+      "correct": true
+    },
+    {
+      "query": "computador nao liga tela preta LED apagado",
+      "expected": "KB-103",
+      "top1": "KB-103",
+      "score": 0.752,
+      "correct": true
+    },
+    {
+      "query": "erro 403 folha conta bloqueada",
+      "expected": "KB-101",
+      "top1": "KB-101",
+      "score": 0.751,
+      "correct": true
+    },
+    {
+      "query": "conta bloqueada Active Directory redefinicao senha",
+      "expected": "KB-104",
+      "top1": "KB-104",
+      "score": 0.72,
+      "correct": true
+    },
+    {
+      "query": "esqueci minha senha do outlook",
+      "expected": "KB-104",
+      "top1": "KB-104",
+      "score": 0.735,
+      "correct": true
+    },
+    {
+      "query": "Nao consigo acessar a folha de pagamento, erro 403",
+      "expected": "KB-101",
+      "top1": "KB-101",
+      "score": 0.778,
+      "correct": true
+    }
+  ],
+  "irrelevant": [
+    {
+      "query": "impressora do terceiro andar sem toner",
+      "top1": "KB-103",
+      "score": 0.593
+    },
+    {
+      "query": "como pedir ferias no RH",
+      "top1": "KB-101",
+      "score": 0.531
+    },
+    {
+      "query": "quero trocar meu mouse por um sem fio",
+      "top1": "KB-103",
+      "score": 0.519
+    },
+    {
+      "query": "o cafe da copa acabou",
+      "top1": "KB-103",
+      "score": 0.543
+    },
+    {
+      "query": "excel travando ao abrir planilha grande",
+      "top1": "KB-102",
+      "score": 0.55
+    }
+  ],
+  "summary": {
+    "relevant_min": 0.643,
+    "irrelevant_max": 0.593,
+    "chosen_threshold": 0.62,
+    "top1_accuracy": 1.0
+  }
+}
